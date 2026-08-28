@@ -164,6 +164,10 @@
   .offers{display:flex;flex-direction:column;gap:9px}
   .offer{border:1.5px solid #e3e7e3;border-radius:14px;padding:12px 14px;cursor:pointer;transition:.15s;background:#fafbfa}
   .offer:hover{border-color:var(--accent);box-shadow:0 4px 14px rgba(0,0,0,.08);transform:translateY(-1px)}
+  .offerwrap{position:relative}
+  .ocopy{position:absolute;bottom:10px;right:10px;opacity:0;pointer-events:none;transition:opacity .15s;background:#ffffffee;border:1px solid #cfd8cf;border-radius:999px;padding:3px 10px;font-size:10.5px;font-weight:800;color:#4a6a55;cursor:pointer;z-index:2}
+  .offerwrap:hover .ocopy{opacity:1;pointer-events:auto}
+  @media (hover:none){.ocopy{opacity:.9;pointer-events:auto}}
   .offer.reach{border-style:dashed}
   .ohead{display:flex;justify-content:space-between;align-items:center}
   .oname{font-weight:900;font-size:15px;color:#222}
@@ -10096,6 +10100,19 @@ function pronoun(g,which){const t={m:["he","him","his"],f:["she","her","her"],x:
 let G=null;
 function rng(){G.seed|=0;G.seed=G.seed+0x6D2B79F5|0;let t=Math.imul(G.seed^G.seed>>>15,1|G.seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}
 function rint(a,b){return Math.floor(a+rng()*(b-a+1));}
+/* ===== WORLD-BEAT RNG =====
+   Rolls keyed to the world's seed and the calendar year instead of the shared stream, so two
+   players on the same link meet the same beats: the same death's-door layout, the same quirk,
+   the same attack variant, however far their decisions have diverged. */
+function hashStr(s){let x=2166136261;for(let i=0;i<s.length;i++){x^=s.charCodeAt(i);x=Math.imul(x,16777619);}return x>>>0;}
+function wrand(tag,noYear){
+  const p=G.player;
+  const y=noYear?0:((p&&p.year)||0);
+  let x=(((G.runSeed!==undefined?G.runSeed:G.seed)>>>0)^Math.imul(y>>>0,0x85EBCA6B)^hashStr(String(tag)))>>>0;
+  x=Math.imul(x^x>>>15,1|x);x^=x+Math.imul(x^x>>>7,61|x);
+  return((x^x>>>14)>>>0)/4294967296;
+}
+function wrint(tag,a,b,noYear){return Math.floor(a+wrand(tag,noYear)*(b-a+1));}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 /* ===== SHAREABLE RUNS =====
    A run is fully determined by the setup you chose plus the seed the generator holds the moment
@@ -10141,13 +10158,36 @@ function copyText(txt){
   }catch(e){}
   return false;
 }
+function copyOfferLink(ev,age,rung){
+  try{ev.stopPropagation();}catch(e){}
+  if(G.lockedSeed===undefined)G.lockedSeed=(G.seed>>>0);   /* freeze the world the link promises */
+  const s=G.setup,p=G.player;
+  const code=runCodeFrom({v:1,sd:G.lockedSeed,c:s.country,o:s.origin,i:s.circle,g:(p&&p.gender)||s.gender||"x",a:age,n:(p&&p.name)||s.name||"",r:rung});
+  let base="";try{base=String(location.href).split("#")[0];}catch(e){}
+  copyText((base||"")+"#run="+code);
+  try{const b=ev.currentTarget||ev.target;b.textContent="✓ "+(G.lang==="de"?"kopiert":"copied");}catch(e){}
+}
+function copyResultLink(ev){
+  const s=G.setup,p=G.player;
+  if(!p||G.runSeed===undefined||!G.runResult)return;
+  const code=runCodeFrom({v:1,sd:(G.runSeed>>>0),c:s.country,o:s.origin,i:s.circle,g:p.gender,a:s.age,n:p.name,r:(p.startBase!==undefined?p.startBase:0),res:G.runResult});
+  let base="";try{base=String(location.href).split("#")[0];}catch(e){}
+  copyText((base||"")+"#run="+code);
+  try{const b=ev.currentTarget||ev.target;b.textContent="✓ "+(G.lang==="de"?"kopiert":"copied");}catch(e){}
+}
+function storedResultFor(seed){try{const s=localStorage.getItem("mandate_res_"+(seed>>>0));return s?JSON.parse(s):null;}catch(e){return null;}}
+function playCompareRun(){const c=G.compare&&G.compare.code;if(c)loadRunCode(c,true);}
 function copyRunLink(){copyText(shareUrl());G.shareCopied="link";render();}
 function copyRunSeed(){copyText(currentRunCode());G.shareCopied="code";render();}
 /* restore a shared run: same world, own decisions */
-function loadRunCode(code){
+function loadRunCode(code,forcePlay){
   const o=runCodeParse(code);
   if(!o)return false;
+  /* the same link, opened after finishing: both careers side by side */
+  const own=storedResultFor(o.sd);
+  if(own&&!forcePlay){newGame();G.compare={mine:own,theirs:o.res||null,code:code};G.screen="compare";render();return true;}
   newGame();
+  G.rivalResult=o.res||null;   /* the sender's finished career rides along on a result link */
   G.setup={country:o.c,system:COUNTRIES[o.c].system,origin:o.o,circle:o.i,gender:o.g,age:o.a,name:o.n};
   G.sharedRun=true;
   buildPlayer();
@@ -10269,8 +10309,12 @@ function finalizeStart(age,rung,forceSeed){
   p.capital=computeCapital();
   applyAccent(S);
   if(forceSeed!==null&&forceSeed!==undefined)G.seed=forceSeed>>>0;
-  /* the world is settled now, offer the code before a single decision is taken */
-  G.pendingStart={age:age,rung:rung};G.shareCopied=null;G.screen="share";render();
+  else if(G.lockedSeed!==undefined)G.seed=G.lockedSeed>>>0;   /* a copied link promised this exact world */
+  G.lockedSeed=undefined;
+  G.runSeed=(G.seed>>>0);   /* the world's identity: results and shared beats key off it */
+  /* only a guest arriving by link sees the intro card; your own run simply begins */
+  if(G.sharedRun){G.pendingStart={age:age,rung:rung};G.shareCopied=null;G.screen="share";render();}
+  else{G.pendingStart=null;G.screen="play";startYear();}
 }
 function beginRun(){G.pendingStart=null;G.screen="play";startYear();}
 function createBack(){if(G.createStep<=0){G.screen="home";render();return;}G.createStep--;render();}
@@ -10858,7 +10902,7 @@ function eventWeight(e){let w=e.weight||0;if(isRealWorldEvent(e))w*=1.8;if(e.id&
   if(e.country)w*=1.8; /* a country's own texture must actually surface */
   if(e.id&&/cf_/.test(e.id)&&G.player&&G.player.flags.classic_counterfactual_open)w*=5.0; /* the counterfactual life is the point of the fork */
   return w;}
-function weightedPickEvent(pool){let total=pool.reduce((a,e)=>a+eventWeight(e),0),r=rng()*total,e=pool[0];for(const c of pool){r-=eventWeight(c);if(r<=0){e=c;break;}}return e;}
+function weightedPickEvent(pool,tag){let total=pool.reduce((a,e)=>a+eventWeight(e),0),r=(tag!==undefined?wrand(tag):rng())*total,e=pool[0];for(const c of pool){r-=eventWeight(c);if(r<=0){e=c;break;}}return e;}
 function nextEvent(){
   const p=G.player;
   while(G.queue.length){const id=G.queue.shift();const ev=EVENTS.find(e=>e.id===id);
@@ -10875,6 +10919,7 @@ function nextEvent(){
       if(ev.id&&ev.id.indexOf("opp_bigleap")===0)notePromoOffer();   /* spent now that the player can actually see it */
       G.current=ev;G.currentIsFiller=false;if(eventUsesBudget(ev))initTreasury();prepareChoiceLabels(G.current);G.choiceOrder=shuf(ev.choices.length);G.mode="event";render();return;}
   if(p.scenario&&!p.flags.classic_counterfactual_open){endYear();return;}
+  p.evN=(p.evYear===p.year)?(p.evN||0)+1:0;p.evYear=p.year;   /* nth pick of this year, for shared-beat keys */
   const pool=EVENTS.filter(e=>e.weight>0&&applicable(e));
   if(pool.length===0){const f=pickFiller();if(!f){endYear();return;}G.current=f;G.currentIsFiller=true;prepareChoiceLabels(G.current);}
   else{
@@ -10882,13 +10927,13 @@ function nextEvent(){
     const unstable=p.economy<64||p.stats.approval<52||p.scandalHeat>26||(p.regimeFavor!==undefined&&p.regimeFavor<58)||p.purgeRisk>34||natTier()>=.65;
     const dramaNeed=(p.dramaCount||0)<2;
     const dramaGap=dramaNeed?1:6;
-    const drDue=drPool.length&&(p.lastDramaYear===undefined||p.year-p.lastDramaYear>=dramaGap)&&((dramaNeed&&rng()<0.96)||(unstable&&rng()<0.012));
-    const rwDue=rwPool.length&&(p.lastRealWorldYear===undefined||p.year-p.lastRealWorldYear>=1)&&rng()<0.55;
+    const drDue=drPool.length&&(p.lastDramaYear===undefined||p.year-p.lastDramaYear>=dramaGap)&&((dramaNeed&&wrand("dr"+p.evN)<0.96)||(unstable&&wrand("dru"+p.evN)<0.012));
+    const rwDue=rwPool.length&&(p.lastRealWorldYear===undefined||p.year-p.lastRealWorldYear>=1)&&wrand("rw"+p.evN)<0.55;
     const basePool=(!drDue&&!dramaNeed)?pool.filter(e=>!(e.id&&e.id.indexOf("dr_")===0)):pool;
     /* never pick from an empty sub-pool (e.g. only dr_ events remain but the drama quota is met) */
     let usePool=drDue?drPool:(rwDue?rwPool:basePool);
     if(!usePool.length)usePool=basePool.length?basePool:pool;
-    const e=weightedPickEvent(usePool);
+    const e=weightedPickEvent(usePool,"ev"+p.evN);
     if(!e){const f=pickFiller();if(!f){endYear();return;}G.current=f;G.currentIsFiller=true;prepareChoiceLabels(G.current);G.choiceOrder=shuf(G.current.choices.length);G.mode="event";render();return;}
     if(e.id&&e.id.indexOf("dr_")===0){p.lastDramaYear=p.year;p.dramaCount=(p.dramaCount||0)+1;}
     if(isRealWorldEvent(e))p.lastRealWorldYear=p.year;
@@ -11924,7 +11969,7 @@ function endYear(){
   if(checkHealthCrisis())return;
   if(p.flags.regime_collapsing){resolveMilestone(true);return;}
   /* BROKE: personal finances hit rock bottom -> a money-trouble event (several versions) */
-  if(p.netWorth<=6&&(p.lastBroke===undefined||p.year-p.lastBroke>=5)){p.lastBroke=p.year;const bk=["broke_a","broke_b","broke_c"].filter(id=>!p.seen.includes(id));if(bk.length)G.queue.push(bk[rint(0,bk.length-1)]);}
+  if(p.netWorth<=6&&(p.lastBroke===undefined||p.year-p.lastBroke>=5)){p.lastBroke=p.year;const bk=["broke_a","broke_b","broke_c"].filter(id=>!p.seen.includes(id));if(bk.length)G.queue.push(bk[wrint("broke",0,bk.length-1)]);}
   /* the fortune only becomes a political problem once it is genuinely enormous: 2 million */
   if(p.netWorth>=2000&&!p.flags.wealth_pressure_2){p.flags.wealth_pressure_2=true;presentSpecial(makeWealthPressure(2));return;}
   if(budgetEnabled()&&govTier()&&(p.budget||0)>=90&&(p.lastBudgetPressure===undefined||p.year-p.lastBudgetPressure>=10)){p.lastBudgetPressure=p.year;presentSpecial(makeBudgetPressure());return;}
@@ -12365,7 +12410,7 @@ function checkOpportunity(){
   const p=G.player;if(p.flags.regime_collapsing||atTop())return;
   if(onScript())return;
   if(p.bigLeapDone)return;                           /* at most one two-rung offer per career */
-  if(p.bigLeapFate===undefined){p.bigLeapFate=rng()<0.8?1:0;p.nextBigLeap=p.year+rint(4,8);return;}
+  if(p.bigLeapFate===undefined){p.bigLeapFate=wrand("leapfate",true)<0.8?1:0;p.nextBigLeap=p.year+wrint("leapwin",4,8,true);return;}
   if(!p.bigLeapFate)return;                          /* one career in five never gets the knock */
   if(p.office<1||p.office+2>topNat())return;         /* not from the bottom rung, never past the summit */
   if(!promoOfferAllowed())return;                    /* never a second climb chance inside one term */
@@ -13350,8 +13395,8 @@ function checkRedemption(){
   const bad=p.traits.filter(t=>traitKind(t)==="bad");
   if(bad.length<2)return;
   if(p.lastRedeemYear&&p.year-p.lastRedeemYear<6)return;
-  if(rng()>=0.5)return;
-  G.postSummary.push(makeRedemptionOffer(bad[rint(0,bad.length-1)]));
+  if(wrand("redeem")>=0.5)return;
+  G.postSummary.push(makeRedemptionOffer(bad[wrint("redeemT",0,bad.length-1)]));
 }
 function checkEarnedTraitsAnnual(){
   const p=G.player;if(!p||onScript())return;
@@ -13372,7 +13417,7 @@ function checkEarnedTraitsAnnual(){
   /* the echo: about five years after an attack, the body remembers it once */
   if(p.flags.survived_attack&&!p.ptsdDone&&p.attackSurvivedYear&&(p.year-p.attackSurvivedYear)>=5){
     const pool=EVENTS.filter(ev=>ev.id&&ev.id.indexOf("ptsd_")===0&&(!ev.country||ev.country===G.setup.country)&&!p.seen.includes(ev.id)&&applicable(ev));
-    if(pool.length){p.ptsdDone=1;G.queue.push(pool[rint(0,pool.length-1)].id);}
+    if(pool.length){p.ptsdDone=1;G.queue.push(pool[wrint("ptsd",0,pool.length-1)].id);}
   }
   /* 6 Yesterday's Man: twelve years without moving up */
   if(p.office<topNat()&&(p.year-(p.lastPromoteYear||p.careerStartYear||p.year))>=12)grantTrait("nt_yesterday");
@@ -14319,12 +14364,12 @@ EVENTS.push(...QUIRK_EVENTS);
 function checkQuirk(){
   const p=G.player;if(!p||onScript())return;
   if((p.quirkCount||0)>=3)return;
-  if(p.nextQuirkYear===undefined){p.nextQuirkYear=(p.careerStartYear||2026)+rint(6,14);return;}
+  if(p.nextQuirkYear===undefined){p.nextQuirkYear=(p.careerStartYear||2026)+wrint("q0",6,14,true);return;}
   if(p.year<p.nextQuirkYear)return;
   const pool=EVENTS.filter(e=>e.quirk&&!p.seen.includes(e.id)&&applicable(e));
-  if(!pool.length){p.nextQuirkYear=p.year+rint(5,8);return;}
-  p.quirkCount=(p.quirkCount||0)+1;p.nextQuirkYear=p.year+rint(5,8);
-  G.queue.push(pool[rint(0,pool.length-1)].id);
+  if(!pool.length){p.nextQuirkYear=p.year+wrint("q1",5,8);return;}
+  p.quirkCount=(p.quirkCount||0)+1;p.nextQuirkYear=p.year+wrint("q2",5,8);
+  G.queue.push(pool[wrint("qp",0,pool.length-1)].id);
 }
 /* ===== THE MEETING YOU CANNOT READ =====
    Requests for an audience that may be an ambush, or may be exactly what they claim. Nothing in
@@ -14624,7 +14669,7 @@ function checkAttackGuarantee(){
   if((p.careerYears||0)<10||natTier()<0.25)return;
   if(!attackSpacingOK())return;
   const pool=EVENTS.filter(e=>e.id&&e.id.indexOf("assn_")===0&&(!e.country||e.country===G.setup.country)&&!p.seen.includes(e.id)&&applicable(e));
-  if(pool.length)G.queue.push(pool[rint(0,pool.length-1)].id);
+  if(pool.length)G.queue.push(pool[wrint("assn",0,pool.length-1)].id);
 }
 /* every career meets at least two of these, the scheduler queues one every 9-13 years */
 function checkAmbiguousMeeting(){
@@ -15424,9 +15469,27 @@ function deathDoorCard(reason){
 }
 function presentDeathDoor(reason){
   const card=deathDoorCard(reason);
-  const three=rng()<0.5;
-  G.deathDoor={reason:reason,three:three,saveIdx:three?rint(0,2):-1,card:card,order:shuf(3)};
+  const three=wrand("dd")<0.5;
+  const ORD=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
+  G.deathDoor={reason:reason,three:three,saveIdx:three?wrint("dds",0,2):-1,card:card,order:ORD[wrint("ddo",0,5)]};
   G.screen="deathdoor";render();
+}
+function renderCompare(){
+  const de=G.lang==="de",cmp=G.compare||{};
+  const RWORD={died:de?"Im Amt verstorben":"Died in office",martyr:de?"Getötet":"Killed",purged:de?"Gesäubert":"Purged",retire:de?"Zurückgetreten":"Retired",shelved:de?"Abgestellt":"Shelved",defeated:de?"Besiegt":"Defeated"};
+  const a=cmp.mine,b=cmp.theirs;
+  const col=(x,you)=>x?`<div style="flex:1;background:${you?"#eef4ee":"#f5f0f4"};border-radius:12px;padding:11px 12px;text-align:left"><div style="font-weight:900;font-size:14px">${x.n}${you?(de?" (Sie)":" (you)"):""}</div><div class="muted" style="font-size:12px;margin-top:4px">${deT(x.o)}</div><div class="muted" style="font-size:12px">${x.y} ${de?"Jahre":"years"} · ${RWORD[x.e]||x.e}</div><div style="font-size:20px;font-weight:900;margin-top:6px">${x.s}<span style="font-size:10px;font-weight:800;letter-spacing:.5px;margin-left:4px">${de?"PUNKTE":"POINTS"}</span></div></div>`
+    :`<div style="flex:1;border:1.5px dashed #c9d2c9;border-radius:12px;padding:11px 12px;display:flex;align-items:center;justify-content:center"><div class="muted" style="font-size:12px;font-weight:700;line-height:1.5;text-align:center">${de?"Deren Ergebnis fehlt noch.<br>Schicken Sie Ihren Ergebnis-Link zurück.":"Their result is not in yet.<br>Send them your result link back."}</div></div>`;
+  const verdict=(a&&b)?(a.s===b.s?(de?"Gleichstand.":"A dead heat."):(a.s>b.s?(de?"Sie haben diese Welt besser gespielt.":"You played this world better."):(b.n+(de?" hat diese Welt besser gespielt.":" played this world better.")))):"";
+  return `<div class="card" style="text-align:center">
+    <div class="dsub" style="margin-top:0">${de?"DIESELBE WELT, ZWEI KARRIEREN":"TWO CAREERS, ONE WORLD"}</div>
+    <div style="height:8px"></div>
+    <div style="display:flex;gap:9px">${col(a,true)}${col(b,false)}</div>
+    ${verdict?`<div style="font-weight:800;font-size:13px;margin-top:10px">${verdict}</div>`:""}
+    <div style="height:12px"></div>
+    <button class="btn" style="margin-bottom:8px;width:100%" onclick="playCompareRun()">${de?"Diese Welt noch einmal spielen":"Play this world again"}</button>
+    <button class="btn btn-cta" style="width:100%" onclick="newGame();render()">${de?"ZUM START":"HOME"}</button>
+  </div>`;
 }
 function renderDeathDoor(){
   const d=G.deathDoor,card=d.card;
@@ -15475,6 +15538,8 @@ function endGame(reason){
   if(reason==="retire"&&p.flags.peak_stepdown_bonus)score=Math.round(score*1.2);
   score=reason==="apocalypse"?0:Math.max(20,score);
   G.end={reason,score,epithet:pickEpithet(reason,maxTier),office:S.ladder[p.maxOffice],years,peak:Math.round(peak),pct:Math.round(p.maxOffice/worldIdx()*100)};
+  G.runResult={n:p.name,s:G.end.score,o:G.end.office,e:reason,y:G.end.years};
+  if(G.runSeed!==undefined&&!p.scenario){try{localStorage.setItem("mandate_res_"+(G.runSeed>>>0),JSON.stringify(G.runResult));}catch(e){}}
   p.ended=true;
   /* the announcement lands first, in the moment; the retrospective comes after the player clicks */
   G.pendingExit=reason;G.screen="exitcard";render();
@@ -15821,12 +15886,12 @@ function renderCard(){
   const origin=ORIGINS.find(o=>o.id===s.origin),circle=CIRCLES.find(c=>c.id===s.circle);
   applyAccent(S);
   const gsel=g=>`<button class="gbtn ${p.gender===g?'on':''}" onclick="pickGender('${g}')">${g==='m'?'♂ Male':g==='f'?'♀ Female':'⚧ Non-binary'}</button>`;
-  const offers=G.offers.map(o=>`<div class="offer" onclick="startFromOffer(${o.age},${o.rung})">
+  const offers=G.offers.map(o=>`<div class="offerwrap"><div class="offer" onclick="startFromOffer(${o.age},${o.rung})">
       <div class="ohead"><span class="oname">${o.title}</span><span class="ostars">${stars(o.stars)}</span></div>
       <div class="onote">You are ${o.age}; ${o.desc}</div>
       ${modChips(o.mods)}
       <div class="ogo">Take this post →</div>
-    </div>`).join("");
+    </div><button class="ocopy" title="${G.lang==="de"?"Freunde spielen mit diesem Link genau diese Welt":"Friends play this exact world with this link"}" onclick="copyOfferLink(event,${o.age},${o.rung})">🔗 ${G.lang==="de"?"Teilen":"Share"}</button></div>`).join("");
   return `<div class="cardwrap">
     <div class="cardhero">
       <div class="chero-flag">${ctry.flag}</div>
@@ -16068,6 +16133,7 @@ function render(){const app=document.getElementById("app");let h="";
   else if(G.screen==="card")h=renderCard();
   else if(G.screen==="share")h=renderShare();
   else if(G.screen==="deathdoor")h=renderDeathDoor();
+  else if(G.screen==="compare")h=renderCompare();
   else if(G.screen==="rankup")h=renderRankUp();
   else if(G.screen==="exitcard")h=renderExitCard();
   else if(G.screen==="play")h=(G.mode==="micro"||G.mode==="microout")?renderMicro():renderPlay();else if(G.screen==="summary")h=renderSummary();else if(G.screen==="overview")h=renderOverview();else if(G.screen==="end")h=renderEnd();
@@ -16084,27 +16150,21 @@ function render(){const app=document.getElementById("app");let h="";
   }else{G._scrollKey=null;}}
 function renderShare(){
   const p=G.player,S=sys(),c=COUNTRIES[G.setup.country];
-  const code=currentRunCode();
+  const de=G.lang==="de";
   const post=(S.ladder&&S.ladder[p.office])||"office";
-  const shared=!!G.sharedRun;
-  const lead=shared
-    ? "You are about to play a world someone else drew: the same country, the same starting post, the same events in the same years. The decisions are yours alone."
-    : "Send this on and another player gets exactly this world, the same events, in the same years, with the same rolls. What they make of it is their own business.";
+  const lead=de
+    ? "Sie spielen eine Welt, die jemand anderes gezeichnet hat: dasselbe Land, derselbe Einstieg, dieselben Ereignisse in denselben Jahren. Die Entscheidungen gehören ganz Ihnen."
+    : "You are about to play a world someone else drew: the same country, the same starting post, the same events in the same years. The decisions are yours alone.";
+  const rival=G.rivalResult?`<div style="margin-top:10px;background:#fdf6e0;border:1.6px dotted #b8860b;border-radius:12px;padding:8px 11px;font-size:12.5px;font-weight:800;color:#7a5b00">${de?"Die Marke, die es zu schlagen gilt":"The score to beat"}: ${G.rivalResult.n} · ${deT(G.rivalResult.o)} · ${G.rivalResult.s} ${de?"Punkte":"points"}</div>`:"";
   return `<div class="card">
-    <div class="dsub" style="margin-top:0">${shared?"A shared run":"Your run is ready"}</div>
+    <div class="dsub" style="margin-top:0">${de?"EIN GETEILTER LAUF":"A SHARED RUN"}</div>
     <div style="font-size:19px;font-weight:900;letter-spacing:.2px;margin:2px 0">${p.name}</div>
-    <div class="muted" style="font-weight:700;font-size:13px;line-height:1.5">${c.flag} ${c.name} · ${post} · ${p.age} · ${p.year}</div>
+    <div class="muted" style="font-weight:700;font-size:13px;line-height:1.5">${c.flag} ${c.name} · ${deT(post)} · ${p.age} · ${p.year}</div>
     <div style="height:10px"></div>
     <div class="muted" style="font-weight:700;font-size:12.5px;line-height:1.55">${lead}</div>
+    ${rival}
     <div style="height:12px"></div>
-    <div style="background:#f3f5f6;border:1px dashed #9aa4ab;border-radius:10px;padding:9px 10px;word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:700;color:#49525a">${code}</div>
-    <div style="height:9px"></div>
-    <div style="display:flex;gap:7px;flex-wrap:wrap">
-      <button class="btn" style="flex:1;min-width:132px;margin:0;font-size:12px;padding:8px 10px" onclick="copyRunLink()">${G.shareCopied==="link"?"✓ Link copied":"🔗 Copy shareable link"}</button>
-      <button class="btn" style="flex:0 0 auto;margin:0;font-size:12px;padding:8px 10px" onclick="copyRunSeed()">${G.shareCopied==="code"?"✓ Copied":"Copy code"}</button>
-    </div>
-    <div style="height:12px"></div>
-    <button class="btn btn-cta" onclick="beginRun()">${shared?"PLAY THIS RUN":"BEGIN"}</button>
+    <button class="btn btn-cta" style="width:100%" onclick="beginRun()">${de?"BEGINNEN":"BEGIN"}</button>
   </div>`;
 }
 function classicHomeButton(c,first){
@@ -16685,7 +16745,16 @@ function renderEnd(){
   const statRows=STAT_KEYS.map(k=>`<div class="statline"><span class="sn">${statLabel(k)}</span><span class="st"><span class="sf" style="width:${Math.round(p.stats[k])}%;background:${statBarCol(p.stats[k])}"></span></span><span class="sv">${Math.round(p.stats[k])}</span></div>`).join("")+meterRowsHtml();
   const flags=Object.keys(p.flags).filter(f=>FLAG_LABELS[f]);
   const histExtra="";   /* traits all live in the coloured row below now */
-  const rep="";   /* the "How history will remember you" block is retired */
+  const deL=G.lang==="de";
+  const RWORD={died:deL?"Im Amt verstorben":"Died in office",martyr:deL?"Getötet":"Killed",purged:deL?"Gesäubert":"Purged",retire:deL?"Zurückgetreten":"Retired",shelved:deL?"Abgestellt":"Shelved",defeated:deL?"Besiegt":"Defeated"};
+  let rep="";
+  if(G.rivalResult&&G.runResult){
+    const A=G.runResult,B=G.rivalResult;
+    const verdict=A.s===B.s?(deL?"Gleichstand.":"A dead heat."):(A.s>B.s?(deL?"Sie haben diese Welt besser gespielt.":"You played this world better."):(B.n+(deL?" hat diese Welt besser gespielt.":" played this world better.")));
+    rep=`<div class="dsub" style="margin-top:12px">${deL?"Dieselbe Welt, zwei Karrieren":"Two careers, one world"}</div>
+      <div style="display:flex;gap:8px;font-size:12px;font-weight:700;text-align:left">${[A,B].map((x,i)=>`<div style="flex:1;background:${i===0?"#eef4ee":"#f5f0f4"};border-radius:12px;padding:9px 11px"><div style="font-weight:900">${x.n}${i===0?(deL?" (Sie)":" (you)"):""}</div><div class="muted" style="font-size:11.5px;margin-top:3px">${deT(x.o)} · ${x.y} ${deL?"Jahre":"years"} · ${RWORD[x.e]||x.e}</div><div style="font-size:16px;font-weight:900;margin-top:4px">${x.s} <span style="font-size:10px;font-weight:800;letter-spacing:.5px">${deL?"PUNKTE":"POINTS"}</span></div></div>`).join("")}</div>
+      <div class="muted" style="font-size:12px;font-weight:800;margin-top:7px">${verdict}</div>`;
+  }
   const ownTraits=p.traits.slice();
   const tr=ownTraits.length?`<div class="dsub">Traits</div>${ownTraits.map(t=>{const isOrigin=t===ORIGIN_TRAIT[G.setup.origin];return `<span class="tchip" title="${traitTip(t)}" style="cursor:help;${traitChipStyle(t,isOrigin)}">${isOrigin?"★ ":""}${TRAITS[t]?TRAITS[t].name:t}</span>`;}).join("")}`:"";
   return `<div class="endcard">${endMark}<div class="epithet">${e.epithet}</div><div class="bigname">${p.name}</div><div class="muted" style="font-weight:600;font-size:13.5px;line-height:1.6;text-align:justify;text-justify:inter-word;hyphens:auto;margin:8px 4px 2px">${rt}</div>${world}
@@ -16696,7 +16765,7 @@ function renderEnd(){
     <div class="drawer" style="text-align:left;margin-top:8px"><div class="dsub" style="margin-top:0">How you changed, year by year</div>${statsGraphSvg()}</div>
     <div class="drawer" style="text-align:left;margin-top:8px"><div class="dsub" style="margin-top:0">The economy and your own fortune</div>${wealthEconGraphSvg()}</div>
     <div class="drawer" style="text-align:left;margin-top:8px"><div class="dsub" style="margin-top:0">Final stats</div>${statRows}${tr}${rep}</div>
-    <div style="height:16px"></div><button class="btn" style="margin-bottom:8px;font-size:10px;padding:6px 12px;width:auto;opacity:.75" onclick="exportRun()">⬇️ Export run</button><button class="btn btn-cta" onclick="restart()">PLAY AGAIN</button></div>`;
+    <div style="height:16px"></div>${(G.runSeed!==undefined&&!p.scenario)?`<button class="btn" style="margin-bottom:8px;margin-right:6px;font-size:10px;padding:6px 12px;width:auto;opacity:.75" onclick="copyResultLink(event)">🔗 ${deL?"Ergebnis-Link kopieren":"Copy result link"}</button>`:""}<button class="btn" style="margin-bottom:8px;font-size:10px;padding:6px 12px;width:auto;opacity:.75" onclick="exportRun()">⬇️ Export run</button><button class="btn btn-cta" onclick="restart()">PLAY AGAIN</button></div>`;
 }
 /* ===== ONE OF EACH KIND OF CATASTROPHE PER LIFE =====
    Two dam decisions in one career cheapens the first one. Each crisis is sorted into an archetype
