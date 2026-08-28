@@ -10140,7 +10140,7 @@ function runCodeParse(code){
 function currentRunCode(){
   const s=G.setup,p=G.player;
   if(!p)return "";
-  return runCodeFrom({v:1,sd:(G.seed>>>0),c:s.country,o:s.origin,i:s.circle,g:p.gender,a:s.age,n:p.name,r:(p.startBase!==undefined?p.startBase:p.office)});
+  return runCodeFrom({v:1,sd:((G.runSeed!==undefined?G.runSeed:G.seed)>>>0),c:s.country,o:s.origin,i:s.circle,g:p.gender,a:s.age,n:p.name,r:(p.startBase!==undefined?p.startBase:p.office)});
 }
 function shareUrl(){
   const code=currentRunCode();
@@ -10185,7 +10185,7 @@ function loadRunCode(code,forcePlay){
   if(!o)return false;
   /* the same link, opened after finishing: both careers side by side */
   const own=storedResultFor(o.sd);
-  if(own&&!forcePlay){newGame();G.compare={mine:own,theirs:o.res||null,code:code};G.screen="compare";render();return true;}
+  if(own&&!forcePlay){newGame();G.compare={mine:own,theirs:o.res||null,code:code,setup:o};G.screen="compare";render();return true;}
   newGame();
   G.rivalResult=o.res||null;   /* the sender's finished career rides along on a result link */
   G.setup={country:o.c,system:COUNTRIES[o.c].system,origin:o.o,circle:o.i,gender:o.g,age:o.a,name:o.n};
@@ -15483,6 +15483,8 @@ function renderCompare(){
   const verdict=(a&&b)?(a.s===b.s?(de?"Gleichstand.":"A dead heat."):(a.s>b.s?(de?"Sie haben diese Welt besser gespielt.":"You played this world better."):(b.n+(de?" hat diese Welt besser gespielt.":" played this world better.")))):"";
   return `<div class="card" style="text-align:center">
     <div class="dsub" style="margin-top:0">${de?"DIESELBE WELT, ZWEI KARRIEREN":"TWO CAREERS, ONE WORLD"}</div>
+    ${(function(){const s=cmp.setup;if(!s)return "";const ct=COUNTRIES[s.c],og=ORIGINS.find(x=>x.id===s.o),ci=CIRCLES.find(x=>x.id===s.i);const tk=ORIGIN_TRAIT[s.o],tr0=tk&&TRAITS[tk];
+      return `<div class="muted" style="font-weight:700;font-size:12px;margin-top:4px">${ct?ct.flag+" "+ct.name:""}${og?" · "+deT(og.name):""}${ci?" · "+deT(ci.name):""}${tr0?" · ★ "+deT(tr0.name):""}</div>`;})()}
     <div style="height:8px"></div>
     <div style="display:flex;gap:9px">${col(a,true)}${col(b,false)}</div>
     ${verdict?`<div style="font-weight:800;font-size:13px;margin-top:10px">${verdict}</div>`:""}
@@ -16156,10 +16158,16 @@ function renderShare(){
     ? "Sie spielen eine Welt, die jemand anderes gezeichnet hat: dasselbe Land, derselbe Einstieg, dieselben Ereignisse in denselben Jahren. Die Entscheidungen gehören ganz Ihnen."
     : "You are about to play a world someone else drew: the same country, the same starting post, the same events in the same years. The decisions are yours alone.";
   const rival=G.rivalResult?`<div style="margin-top:10px;background:#fdf6e0;border:1.6px dotted #b8860b;border-radius:12px;padding:8px 11px;font-size:12.5px;font-weight:800;color:#7a5b00">${de?"Die Marke, die es zu schlagen gilt":"The score to beat"}: ${G.rivalResult.n} · ${deT(G.rivalResult.o)} · ${G.rivalResult.s} ${de?"Punkte":"points"}</div>`:"";
+  const orig=ORIGINS.find(x=>x.id===G.setup.origin),circ=CIRCLES.find(x=>x.id===G.setup.circle);
+  const setupLine=`<div class="muted" style="font-weight:700;font-size:12.5px;margin-top:3px">${orig?(orig.icon?orig.icon+" ":"")+deT(orig.name):""}${circ?" · "+(circ.icon?circ.icon+" ":"")+deT(circ.name):""}</div>`;
+  const tk=ORIGIN_TRAIT[G.setup.origin],tr0=tk&&TRAITS[tk];
+  const traitBadge=tr0?`<div style="margin-top:9px"><span class="tchip" style="${traitChipStyle(tk,true)}">★ ${deT(tr0.name)}</span><div class="muted" style="font-size:11.5px;font-weight:700;margin-top:4px;line-height:1.5">${deT(tr0.desc||"")}</div></div>`:"";
   return `<div class="card">
     <div class="dsub" style="margin-top:0">${de?"EIN GETEILTER LAUF":"A SHARED RUN"}</div>
     <div style="font-size:19px;font-weight:900;letter-spacing:.2px;margin:2px 0">${p.name}</div>
     <div class="muted" style="font-weight:700;font-size:13px;line-height:1.5">${c.flag} ${c.name} · ${deT(post)} · ${p.age} · ${p.year}</div>
+    ${setupLine}
+    ${traitBadge}
     <div style="height:10px"></div>
     <div class="muted" style="font-weight:700;font-size:12.5px;line-height:1.55">${lead}</div>
     ${rival}
