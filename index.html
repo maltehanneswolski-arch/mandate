@@ -37,8 +37,8 @@
   .opt .od{color:var(--muted);font-size:13.5px;line-height:1.45;margin-top:6px}
   .mods{font-size:12px;margin-top:8px;font-weight:700;display:flex;flex-wrap:wrap;gap:5px}
   .mchip{border-radius:6px;padding:2px 7px;background:#eef3ef;color:#43614f}
-  .tbadge{margin:7px 0 2px;padding:6px 9px;border-radius:9px;background:linear-gradient(135deg,#f9e7ac,#eec758);border:1.5px solid #d9a92a;color:#5a4300;font-size:11.5px;font-weight:900;letter-spacing:.2px;box-shadow:0 1px 4px rgba(217,169,42,.35)}
-  .tbadge .tbd{display:block;margin-top:2px;font-size:11px;font-weight:600;color:#6a4f0a;line-height:1.45}
+  .tbadge{margin:7px 0 2px;padding:6px 9px;border-radius:9px;background:#e3f4e6;border:1.5px solid #9fd0ab;color:#1e6b34;font-size:11.5px;font-weight:900;letter-spacing:.2px}
+  .tbadge .tbd{display:block;margin-top:2px;font-size:11px;font-weight:600;color:#2f6b45;line-height:1.45}
   .mchip.pos{background:#e5f5ea;color:#1f8a4c}.mchip.neg{background:#fbe9e7;color:#c0392b}.mchip.mon{background:#efe9f8;color:#6d4b9c}
   .backbtn{background:#fff;border:none;border-radius:12px;padding:9px 15px;font-weight:800;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.12)}
   .idbar{background:#fff;border-radius:14px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:13px;box-shadow:0 3px 10px rgba(0,0,0,.12);gap:8px}
@@ -3931,9 +3931,14 @@ function traitDeltaRelief(deltas,e,ch){
                  ['business_boss',t.money,'💼 Your trait <i>Business Boss</i> is working here.']].find(r=>hasTrait(r[0])&&r[1]);
     if(claim)notes.push(claim[2]);
   }
-  if(notes.length)G.lastTraitNote=notes[0];
-  else if(G.pendingTraitOdds)G.lastTraitNote=G.pendingTraitOdds;
-  G.pendingTraitOdds=null;
+  const lines=[].concat(notes,G.pendingTraitOdds?[G.pendingTraitOdds]:[],G.pendingTraitOddsList||[]);
+  G.pendingTraitOdds=null;G.pendingTraitOddsList=null;
+  if(lines.length){
+    const have=String(G.lastTraitNote||"");
+    const fresh=lines.filter(l=>{const m=/<i>([^<]*)<\/i>/.exec(l);return !(m&&have.indexOf("<i>"+m[1]+"</i>")>=0);});
+    const seen={};const uniq=fresh.filter(l=>{const m=/<i>([^<]*)<\/i>/.exec(l);const k=m?m[1]:l;if(seen[k])return false;seen[k]=1;return true;});
+    if(uniq.length)G.lastTraitNote=(have?have+"<br>":"")+uniq.join("<br>");
+  }
   return deltas;
 }
 
@@ -11574,7 +11579,20 @@ function chooseOption(i){
   applyCareerPressureGate();
   if(e.id&&!G.currentIsFiller){if(!p.seen.includes(e.id))p.seen.push(e.id);if(e.recurring){p.cooldowns=p.cooldowns||{};p.cooldowns[e.id]=p.year;}}
   if(officeDelta>0)p.lastPromoteYear=p.year;
-  checkTraits();G.mode="outcome";render();
+  checkTraits();
+  if(deathDoorInterceptsOutcome())return;
+  G.mode="outcome";render();
+}
+/* A fatal outcome used to be read in full, clicked past, and only THEN followed by the last-moment
+   card, so the player was asked to save themselves after being told they had died. The door now
+   opens between the decision and its verdict; the verdict card waits behind it. */
+function deathDoorInterceptsOutcome(){
+  const p=G.player,t=String(G.lastThen||"");
+  if(t!=="end:died"&&t!=="end:martyr")return false;
+  if(G.deathDoorDecided||onScript()||p.scenario)return false;
+  G.deathDoorHeld=true;
+  presentDeathDoor(t==="end:martyr"?"martyr":"died",true);
+  return true;
 }
 function applyDeltas(d){
   const p=G.player,chips=[];
@@ -11645,8 +11663,11 @@ function checkOdds(ch,e){
     ps+=(val-55)/130;}   /* ...but the stat the moment calls for weighs heavier on a climb than on anything else */
   if(p.age>=62)ps-=(p.age-62)*0.005;                 /* governing gets harder as you age */
   ps=earnedOddsAdjust(ps,ch,e);   /* earned traits weigh in; the clamp below still rules out certainty */
-  if(!G.pendingTraitOdds&&G._etBoost&&G._etBoost.amt>=0.05&&TRAITS[G._etBoost.id])
-    G.pendingTraitOdds="🏅 <i>"+TRAITS[G._etBoost.id].name+"</i> improved the odds here.";
+  /* one line per trait that moved this roll, the penalties included: the player asked to see
+     every trait at work, not only the one chosen at the start */
+  const seenT={};
+  G.pendingTraitOddsList=(G._etBoosts||[]).filter(b=>b.id&&TRAITS[b.id]&&Math.abs(b.amt)>=0.03&&!seenT[b.id]&&(seenT[b.id]=1))
+    .map(b=>b.amt>0?("🏅 <i>"+TRAITS[b.id].name+"</i> improved the odds here."):("⚠️ <i>"+TRAITS[b.id].name+"</i> worked against you here."));
 if(hasDebuff("burnout"))ps-=0.08;
   return clamp(ps,0.03,0.96);
 }
@@ -11669,6 +11690,17 @@ const BACKFIRE_POOLS={
   "The extra guards are a comfort and a signal, and the signal reaches the wrong people first.",
   "Whoever sent it now knows exactly how much you will rearrange your life over it.",
   "The danger passes and the habit of watching the door does not, and it shows in every room."
+ ],
+ /* A walk on the coast or a stairwell taken slowly is not a policy; it cannot close a ledger or
+    reach the political price. Private choices get private consequences. */
+ personal:[
+  "It does you good, and it is noticed anyway, by somebody who files it under indulgence.",
+  "The small thing spreads the way small things do, one retelling at a time, each a little less kind.",
+  "You feel better for a week, and the week is exactly when the story about it gets told.",
+  "Somebody photographs it, and the photograph is unflattering in a way the moment was not.",
+  "It is harmless, and it is precisely the kind of harmless thing people bring up later.",
+  "Nothing goes wrong, and it still reads as a choice, and the choice reads as a priority.",
+  "The people who needed you that afternoon remember where you were instead."
  ],
  refusal:[
   "Your restraint is retold as indecision by the people who were in the room, and the retelling sticks.",
@@ -11756,6 +11788,7 @@ function backfirePoolFor(ch,e){
   const REFUSE=/\b(refuse|refusing|declin|reject|say nothing|say little|stay silent|conspicuously silent|dignified silence|in silence|ignore|ignoring|shrug|^wait\b|wait (for|them|it|out)|ride it out|banish the thought|stay (out|clear|neutral|strictly neutral|where|away|independent|home|proudly)|keep your (distance|money|privacy|head down)|keep the old|do nothing|nothing at all|walk away|change nothing|avoid (the|it)|recuse|pretend you never|live modestly|buy nothing|answer politically|demand secrecy and wait|watch everyone|trust the institutions|turn off the|send (a )?polite refus|say no\b|cling on|absorb the loss|leave (it|the matter|the response|them) to|hand it to|defer to|endorse no one|let (it|the|them|him|her|a)\b)/;
   /* a refusal that is also a public act (refuse AND expose/denounce) is an act, not restraint */
   var LOUD=/(expose|publicly|denounce|announce it|and (tell|shout|publish)|on air|in public)/;
+  if(/\b(PERSONAL|HEALTH|FAMILY|PRIVATE|HOME|LIFE)\b/.test(String((e&&e.cat)||""))&&!/\b(reform|bill|law|budget|troops|police|strike|ministry|minister|cabinet|parliament|party)\b/.test(w))return P.personal;
   /* a threat, a tail, a knife in a gate: defensive answers get the threat pool, not restraint */
   if(/\b(knife|dagger|threat|threats|threatening|bomb|explosive|gunman|assassin|assassination|shot at|intimidat|blackmail|extortion|surveillance|followed|watched|bugged|tapped|anonymous (note|letter|call|package))\b/.test(w)&&
      /\b(watch|guards?|bodyguards?|security|detail|say nothing|stay silent|tell no one|nobody|seal the|lock|move the (family|household)|change (the |your )?(route|routine)|carry on|as normal|ignore it|report it)\b/.test(c))return P.threat;
@@ -11975,6 +12008,10 @@ function buildMicroDesc(m){
   /* the opening must fit the WORLD of the call, a child's question cannot open with desk
      bureaucracy. MICRO_CONTEXT carries a category-true framing for every category; the old
      topic-free desk pool survives only as a fallback, and only its situation-neutral lines. */
+  /* The category framing ("The office is tired, ambitious, and listening") was pasted under every
+     call in that category, so a stray cat got a paragraph about office politics. The question
+     carries the scene on its own. */
+  return "";
   const ctx=(typeof MICRO_CONTEXT!=="undefined"&&MICRO_CONTEXT[m.c])||"";
   const neutral=runUniquePick("micro_desc_n",[
     "The people involved will remember the answer longer than you will.",
@@ -13186,8 +13223,7 @@ function traitKind(t){
   return "good";
 }
 function traitChipStyle(t,isOrigin){
-  if(isOrigin)return "background:linear-gradient(135deg,#f6d365,#e8b430);color:#5a4300;border:1px solid #d9a92a;box-shadow:0 1px 4px rgba(217,169,42,.45);";
-  const k=traitKind(t);
+  const k=traitKind(t);   /* the origin trait takes the same colours as every other trait */
   if(k==="good")return "background:#e3f4e6;color:#1e6b34;border:1px solid #9fd0ab;";
   if(k==="bad")return "background:#fbe4e2;color:#8f2318;border:1px solid #e2a49d;";
   return "";   /* mixed keeps the purple house chip */
@@ -13229,19 +13265,20 @@ function evCovert(ch){return /\b(bribe|quiet|discreet|offshore|off the books|und
 function evSecuritySpend(ch){return /\b(security|defen[cs]e|rearm|armament|garrison|guards?|fortif)\b/i.test(String((ch&&ch.label)||""));}
 /* ---------- odds side (called from checkOdds, before the clamp) ---------- */
 function earnedOddsAdjust(ps,ch,e){
-  G._etBoost=null;
+  G._etBoost=null;G._etBoosts=[];
   const p=G.player;if(!p||!p.traits||!p.traits.length)return ps;
   const has=id=>{
     const yes=p.traits.includes(id);
     if(yes)G._etLast=id;   /* the trait whose condition is being tested next */
     return yes;
   };
-  const psAdd=a=>{ps+=a;if(!G._etBoost||a>G._etBoost.amt)G._etBoost={id:G._etLast,amt:a};};
+  const psAdd=a=>{ps+=a;(G._etBoosts=G._etBoosts||[]).push({id:G._etLast,amt:a});if(!G._etBoost||a>G._etBoost.amt)G._etBoost={id:G._etLast,amt:a};};
+  const psSub=a=>{ps-=a;(G._etBoosts=G._etBoosts||[]).push({id:G._etLast,amt:-a});};
   const t=eventTopic(e,ch);
   const promo=choiceRaisesOffice(ch);
   if(has("et_peace_broker")&&evForeign(e))psAdd(0.10);
   if(has("et_watcher")&&t.order)psAdd(0.06);
-  if(has("et_war_monger")){if(evWar(e,ch)||ch.tag==="POPULIST")psAdd(0.10);if(evForeign(e)&&!evWar(e,ch))ps-=0.08;}
+  if(has("et_war_monger")){if(evWar(e,ch)||ch.tag==="POPULIST")psAdd(0.10);if(evForeign(e)&&!evWar(e,ch))psSub(0.08);}
   if(has("et_protest_crusher")&&evCrush(ch))psAdd(0.10);
   if(has("et_crisis_champion")&&evCrisis(e))psAdd(0.10);
   if(has("et_comebacker")&&promo){psAdd(0.05);if(p.office<p.maxOffice)psAdd(0.12);}
@@ -13254,7 +13291,7 @@ function earnedOddsAdjust(ps,ch,e){
   if(has("et_corruptor")&&evCovert(ch))psAdd(0.12);
   if(has("et_hawk")&&(evSecuritySpend(ch)||evWar(e,ch)||evForeign(e)||/MILITARY|DEFEN[CS]E|NAVY|SECURITY/i.test((e&&e.cat)||"")))psAdd(0.10);
   if(has("et_principled")&&(checkStat(ch,e)==="integrity"||ch.tag==="PRINCIPLED"))psAdd(0.10);
-  if(has("et_intimidator")){if(ch.tag==="RUTHLESS")psAdd(0.10);if(t.crowd)ps-=0.06;}
+  if(has("et_intimidator")){if(ch.tag==="RUTHLESS")psAdd(0.10);if(t.crowd)psSub(0.06);}
   if(has("et_walking_wreck")&&ch.tag==="DEFIANT")psAdd(0.12);
   if(has("et_workaholic")&&promo)psAdd(0.06);
   if(has("et_baptism")&&evCrisis(e))psAdd(0.06);
@@ -13262,15 +13299,15 @@ function earnedOddsAdjust(ps,ch,e){
   if(has("et_negotiator")&&(/BACKROOM|PARTY|FEUD/i.test((e&&e.cat)||"")||/negotiat|mediat|broker|settle/.test(String((ch&&ch.label)||"").toLowerCase())))psAdd(0.08);
   if(has("et_witness")&&(checkStat(ch,e)==="integrity"||ch.tag==="PRINCIPLED"))psAdd(0.08);
   /* the negative ledger weighs the other way (no note, the game does not gloat) */
-  if(has("nt_coward")&&evCrisis(e))ps-=0.08;
-  if(has("nt_ring")&&/BACKROOM|PARTY/i.test((e&&e.cat)||""))ps-=0.06;
-  if(has("nt_butcher")){if(t.crowd)ps-=0.10;if(evCrush(ch))ps+=0.05;}
-  if(has("nt_yesterday")&&promo)ps-=0.10;
-  if(has("nt_screamer")&&(checkStat(ch,e)==="charisma"))ps-=0.08;
-  if(has("nt_papertiger")&&ch.tag==="RUTHLESS")ps-=0.12;
-  if(has("nt_ghost")&&t.crowd)ps-=0.10;
+  if(has("nt_coward")&&evCrisis(e))psSub(0.08);
+  if(has("nt_ring")&&/BACKROOM|PARTY/i.test((e&&e.cat)||""))psSub(0.06);
+  if(has("nt_butcher")){if(t.crowd)psSub(0.10);if(evCrush(ch))ps+=0.05;}
+  if(has("nt_yesterday")&&promo)psSub(0.10);
+  if(has("nt_screamer")&&(checkStat(ch,e)==="charisma"))psSub(0.08);
+  if(has("nt_papertiger")&&ch.tag==="RUTHLESS")psSub(0.12);
+  if(has("nt_ghost")&&t.crowd)psSub(0.10);
   if(has("nt_puppet")&&promo)ps+=0.05;
-  if(has("nt_ledger")&&checkStat(ch,e)==="integrity")ps-=0.15;
+  if(has("nt_ledger")&&checkStat(ch,e)==="integrity")psSub(0.15);
   if(has("nt_foreignhands")&&evForeign(e))ps+=0.05;
   return ps;
 }
@@ -13327,7 +13364,8 @@ function earnedTraitShape(deltas,e,ch,win){
   if(has("nt_foreignhands")&&t.money&&(deltas.scandalHeat||0)>0)deltas.scandalHeat=(deltas.scandalHeat*1.25);
   if(has("nt_borrowed")&&(deltas.approval||0)>0)deltas.approval=(deltas.approval*1.4);
   /* say so when an earned trait genuinely improved the outcome, same as the stat note */
-  if(_shapeHit&&!G.lastTraitNote&&TRAITS[_shapeHit.id])G.lastTraitNote="🏅 <i>"+TRAITS[_shapeHit.id].name+"</i> "+(_shapeHit.kind==="soften"?"softened the fallout here.":"improved the outcome here.");
+  if(_shapeHit&&TRAITS[_shapeHit.id]){const nm=TRAITS[_shapeHit.id].name;const have=String(G.lastTraitNote||"");
+    if(have.indexOf("<i>"+nm+"</i>")<0)G.lastTraitNote=(have?have+"<br>":"")+"🏅 <i>"+nm+"</i> "+(_shapeHit.kind==="soften"?"softened the fallout here.":"improved the outcome here.");}
   return deltas;
 }
 /* ---------- earning: per-outcome tracking ---------- */
@@ -15598,30 +15636,37 @@ function subst(t){
    No death goes straight to the coffin card. Half the time there is one final beat with a single
    acknowledgement; the other half offers three split-second choices, exactly one of which saves
    you. No hints, no odds. Classic lives are exempt: history is not dodgeable. */
-function deathDoorCard(reason){
+function deathDoorCard(reason,fromEvent){
   const p=G.player;
+  /* when a card has already narrated the collapse, the door must continue that scene, not open
+     a new one in a bedroom before dawn */
+  if(fromEvent&&reason==="died")return{
+    title:"The room goes grey",
+    text:"The edges of the room are going grey and everyone around you is moving too slowly. There is time for exactly one thing.",
+    tags:["BOLD","PRAGMATIC","CAUTIOUS"],
+    opts:["Say the one word that gets a doctor moving","Reach for whatever is in your pocket","Hold on to the nearest arm and stay upright"]};
   const collapse=!!p.flags.collapsed_at_desk&&reason==="died";
   const attack=reason==="martyr";
   const old=p.age>=76&&reason==="died";
   if(attack)return{
-    title:"Half a second",
+    title:"Half a second",tags:["BOLD","CAUTIOUS","DEFIANT"],
     text:"The sound arrives before the pain does. The room is still moving, and there is half a second left that belongs to you.",
     opts:["Throw yourself behind the podium","Freeze and drop flat where you stand","Turn toward the shot to face it"]};
   if(collapse)return{
-    title:"Mid-sentence",
+    title:"Mid-sentence",tags:["BOLD","PRAGMATIC","DEFIANT"],
     text:"The floor tilts mid-sentence and the room goes very far away. Somewhere in the grey there is still one thing you could do.",
     opts:["Gasp for the aide's name before the dark closes","Reach for the pills in the desk drawer","Grip the desk and try to stand through it"]};
   if(old)return{
-    title:"The hour before dawn",
+    title:"The hour before dawn",tags:["BOLD","PRAGMATIC","CAUTIOUS"],
     text:"You wake before dawn and the weight on your chest is not worry. The telephone is within reach, and so is the window with its ordinary morning.",
     opts:["Ring the night nurse and say the true word","Take the tablets on the nightstand","Lie still and wait for it to pass"]};
   return{
-    title:"One decision left",
+    title:"One decision left",tags:["BOLD","PRAGMATIC","CAUTIOUS"],
     text:"It comes on fast and wrong, and the part of you that manages things notes, absurdly, that the diary is full tomorrow. There is time for exactly one decision.",
     opts:["Call out for help, loudly, pride be damned","Take the emergency medicine now","Sit down slowly and breathe through it"]};
 }
-function presentDeathDoor(reason){
-  const card=deathDoorCard(reason);
+function presentDeathDoor(reason,fromEvent){
+  const card=deathDoorCard(reason,fromEvent);
   /* the shared-world dice are keyed to the year, which is what lets two players on one link meet
      the same beat: without a per-visit counter a second brush with death in the same year would
      deal the identical card, and the player already knows which door lives */
@@ -15655,8 +15700,8 @@ function renderCompare(){
 function renderDeathDoor(){
   const d=G.deathDoor,card=d.card;
   const btns=d.three
-    ? '<div class="choices">'+d.order.map(i=>'<div class="choice" onclick="deathDoorPick('+i+')"><span>'+card.opts[i]+"</span></div>").join("")+"</div>"
-    : '<div class="choices"><div class="choice" onclick="deathDoorPick(-1)"><span>'+(G.lang==="de"?"Es endet hier":"So this is how it ends")+"</span></div></div>";
+    ? '<div class="choices">'+d.order.map(i=>{const t=(card.tags&&card.tags[i])||"CAUTIOUS";return '<div class="choice" onclick="deathDoorPick('+i+')"><span class="tag '+t+'">'+t+'</span><span>'+card.opts[i]+"</span></div>";}).join("")+"</div>"
+    : '<div class="choices"><div class="choice" onclick="deathDoorPick(-1)"><span class="tag FATE">FATE</span><span>'+(G.lang==="de"?"Es endet hier":"So this is how it ends")+"</span></div></div>";
   /* it used to be a bare bold paragraph, which read as a different game to every other card */
   return '<div class="card"><div class="cat">⏳ '+(G.lang==="de"?"EIN LETZTER MOMENT":"ONE LAST MOMENT")+'</div>'
     +'<div class="etitle">'+(card.title||"")+'</div>'
@@ -15672,7 +15717,7 @@ function deathDoorPick(i){
     p.flags.survived_deaths_door=true;
     p.etc=p.etc||{};p.etc.brink=(p.etc.brink||0)+1;if(p.etc.brink>=2)grantTrait("nt_borrowed");
     addDebuff("injured",2,"Back from the brink");
-    G.deathDoorSpared=true;
+    G.deathDoorSpared=true;G.lastThen=null;G.deathDoorHeld=false;
     /* the outcome view needs its normal furniture, even for a message from the brink */
     G.lastChips=[];G.lastResultWin=null;G.lastMargin=null;G.lastFlagNote=null;G.lastTraitNote=null;
     G.lastBackfire=false;G.lastDebuffNote=null;G.lastStatMod=null;G.traitToast=null;
@@ -15682,13 +15727,14 @@ function deathDoorPick(i){
     G.mode="outcome";G.screen="play";render();
     return;
   }
+  if(G.deathDoorHeld){G.deathDoorHeld=false;G.deathDoorDecided=true;G.mode="outcome";G.screen="play";render();return;}
   G.deathDoorPassed=true;
   endGame(d.reason);
   G.deathDoorPassed=false;
 }
 function endGame(reason){
   const p=G.player,S=sys();
-  if((reason==="died"||reason==="martyr")&&!G.deathDoorPassed&&!onScript()&&!p.scenario){presentDeathDoor(reason);return;}
+  if((reason==="died"||reason==="martyr")&&!G.deathDoorPassed&&!G.deathDoorDecided&&!onScript()&&!p.scenario){presentDeathDoor(reason);return;}
   const maxTier=p.maxOffice/worldIdx();
   const years=p.careerYears!==undefined?p.careerYears:p.year-(p.careerStartYear||2026);
   const peak=(S.meters)?p.peakFavor:p.peakApproval;
@@ -16111,6 +16157,7 @@ Object.assign(DE_MAP,{"Prodigy":"Wunderkind","Teflon":"Teflon","Untouchable":"Un
 Object.assign(DE_MAP,{"A second opinion on your reputation":"Eine zweite Meinung zu Ihrem Ruf","They have handled worse than you":"Sie hatten schon schlimmere Fälle als Sie","An appointment you did not make":"Ein Termin, den Sie nicht vereinbart haben"});
 Object.assign(DE_MAP,{"The minutes of that meeting":"Das Protokoll jener Sitzung","A reporter has the minutes of the night the leadership was decided against, and your name is in them twice. She wants a comment by Friday and already has two other people talking.":"Eine Journalistin hat das Protokoll jener Nacht, in der gegen die Parteiführung entschieden wurde, und Ihr Name steht zweimal darin. Sie will bis Freitag eine Stellungnahme und hat schon zwei andere zum Reden gebracht.","SCANDAL · THE OLD MEETING":"SKANDAL · DIE ALTE SITZUNG","Confirm the meeting and say what you argued for":"Die Sitzung bestätigen und sagen, wofür Sie argumentiert haben","You describe the room plainly, your own part included, and the story runs as history instead of scandal. Nobody resigns over a meeting the whole country had already assumed.":"Sie schildern die Sitzung schlicht, Ihren eigenen Anteil eingeschlossen, und die Geschichte erscheint als Historie statt als Skandal. Niemand tritt wegen einer Sitzung zurück, die das ganze Land längst vermutet hatte.","Deny the meeting and hope the others hold":"Die Sitzung leugnen und hoffen, dass die anderen dichthalten","Two of them hold and one does not, which is the worst possible number. You keep the office and lose the benefit of the doubt for good.":"Zwei halten dicht und einer nicht, was die schlechteste aller möglichen Zahlen ist. Sie behalten das Amt und verlieren endgültig den Zweifel zu Ihren Gunsten.","Put the whole thing on the fixer who arranged it":"Alles dem Mann anhängen, der es arrangiert hat","He carries it for a week and then produces his diary, which is thorough. The party needs someone demoted by the weekend and you are the name on the desk.":"Er trägt es eine Woche und legt dann seinen Terminkalender vor, der sehr genau ist. Die Partei braucht bis zum Wochenende eine Degradierung, und Ihr Name liegt auf dem Tisch.","Have the minutes taken out of her hands":"Ihr das Protokoll aus den Händen nehmen lassen","The papers vanish, and so does any doubt about what kind of person you are. The charge is not the coup, it is what you did about the coup, and it carries a sentence.":"Die Papiere verschwinden, und mit ihnen jeder Zweifel daran, was für ein Mensch Sie sind. Angeklagt wird nicht der Putsch, sondern was Sie dagegen taten, und darauf steht Haft.","The man who counted the votes":"Der Mann, der die Stimmen zählte","The whip who delivered your bloc that night has been arrested over something unrelated, and he is telling prosecutors everything else. Your name sits in the part he has not reached yet.":"Der Fraktionsgeschäftsführer, der Ihnen damals den Block lieferte, ist wegen einer anderen Sache verhaftet worden und erzählt der Staatsanwaltschaft alles Übrige. Ihr Name steht in dem Teil, den er noch nicht erreicht hat.","Go to the prosecutors first with your own account":"Zuerst selbst zur Staatsanwaltschaft gehen","You arrive with a lawyer and a memory, and you are a witness before anyone can make you a target. The file closes around him instead of you.":"Sie erscheinen mit einem Anwalt und einem guten Gedächtnis und sind Zeuge, bevor jemand Sie zum Ziel machen kann. Die Akte schließt sich um ihn und nicht um Sie.","Say nothing and let his credibility do the work":"Schweigen und seine Glaubwürdigkeit arbeiten lassen","He is a poor witness and a vivid one, which turns out to be enough. Months of it wear the shine off everything you say afterwards.":"Er ist ein schlechter Zeuge und ein anschaulicher, und das genügt am Ende. Monate davon nehmen allem den Glanz, was Sie danach sagen.","Have the party cut him loose in public":"Die Partei öffentlich mit ihm brechen lassen","The statement is clean and the man is not, and he answers it with dates. Somebody has to step down a rung to end the story, and it is not the party.":"Die Erklärung ist sauber und der Mann ist es nicht, und er antwortet mit Daten. Irgendjemand muss eine Stufe hinabsteigen, damit die Geschichte endet, und es ist nicht die Partei.","Pay for his silence through a third party":"Sein Schweigen über einen Dritten bezahlen","The payment is traced within a month, because payments are. Witness tampering is a shorter word than conspiracy and a longer sentence.":"Die Zahlung ist binnen eines Monats zurückverfolgt, weil Zahlungen das nun einmal sind. Zeugenbeeinflussung ist ein kürzeres Wort als Verschwörung und eine längere Strafe.","The letter that was never burned":"Der Brief, der nie verbrannt wurde","One of the dukes swore he had burned a letter, and his heir has found it in a strongbox. The seal pressed into the wax is yours.":"Einer der Herzöge schwor, er habe einen Brief verbrannt, und sein Erbe hat ihn in einer Truhe gefunden. Das Siegel im Wachs ist Ihres.","COURT · THE OLD LETTER":"HOF · DER ALTE BRIEF","Carry the letter to the throne yourself, first":"Den Brief zuerst selbst zum Thron tragen","You kneel with the thing in your own hand and tell the story before anyone can shape it. The Crown keeps the letter and, for now, keeps you.":"Sie knien mit dem Schriftstück in der eigenen Hand und erzählen die Geschichte, bevor jemand sie formen kann. Die Krone behält den Brief und behält vorerst auch Sie.","Buy the heir's silence with land":"Das Schweigen des Erben mit Land kaufen","He takes the land and mentions the letter twice more anyway, to people who matter. You are still at court, and the court is watching differently.":"Er nimmt das Land und erwähnt den Brief dennoch zweimal weiter, bei Leuten von Gewicht. Sie sind noch bei Hofe, und der Hof sieht Sie nun anders an.","Let the heir be ruined in your place":"Den Erben an Ihrer Stelle zugrunde gehen lassen","His disgrace is thorough and his cousins are not stupid. The Crown removes you one station, which everyone understands as a mercy.":"Seine Schande ist vollständig und seine Vettern sind nicht dumm. Die Krone setzt Sie eine Stufe herab, was alle als Gnade verstehen.","Send men to the strongbox at night":"Nachts Männer zur Truhe schicken","The strongbox is empty when your men arrive, because somebody expected exactly this. Conspiracy against the Crown has one address, and you are taken to it.":"Die Truhe ist leer, als Ihre Männer eintreffen, weil jemand genau das erwartet hat. Verschwörung gegen die Krone hat nur eine Adresse, und man bringt Sie dorthin.","The confessor talks in his sleep":"Der Beichtvater redet im Schlaf","The priest who heard the cabal's confessions has grown old and loose in the tongue, and the court repeats what he says as though it were weather. Two of the names he repeats are yours.":"Der Priester, der die Beichten der Verschwörer hörte, ist alt geworden und lose in der Zunge, und der Hof gibt seine Worte weiter, als wären sie das Wetter. Zwei der Namen, die er wiederholt, sind Ihre.","Confess the whole business to the Crown before he does":"Die ganze Sache der Krone vor ihm beichten","You tell it in order, badly, without asking for anything in return. The Crown decides a man who confesses is cheaper to keep than to replace.":"Sie erzählen es der Reihe nach, unbeholfen, ohne etwas dafür zu verlangen. Die Krone entscheidet, dass ein Mann, der beichtet, günstiger zu halten als zu ersetzen ist.","Have him moved to a quiet house far away":"Ihn in ein stilles Haus weit weg bringen lassen","The house is quiet and the road from it is not. What he says now arrives with the interest of distance, and the court leans in.":"Das Haus ist still und der Weg von dort fort ist es nicht. Was er jetzt sagt, kommt mit dem Reiz der Ferne an, und der Hof horcht auf.","Denounce him as senile in open court":"Ihn vor dem ganzen Hof als senil bezeichnen","The denunciation works on the priest and not on the question. You keep your name and lose the station attached to it.":"Die Erklärung wirkt gegen den Priester und nicht gegen die Frage. Sie behalten Ihren Namen und verlieren den Rang, der daran hing.","Make sure he says nothing further":"Dafür sorgen, dass er nichts mehr sagt","A priest dies and a household talks, which is the arithmetic you failed to do. They come for you before the funeral is over.":"Ein Priester stirbt und ein Haushalt redet, das ist die Rechnung, die Sie nicht gemacht haben. Man holt Sie, bevor das Begräbnis vorbei ist.","The page with your signature":"Das Blatt mit Ihrer Unterschrift","The commission reviewing the old lists has reached the paperwork, and one page carries your signature beneath a name that was never charged with anything. They are interviewing everyone who signed.":"Die Kommission, die die alten Listen prüft, ist bei den Akten angekommen, und ein Blatt trägt Ihre Unterschrift unter einem Namen, gegen den nie Anklage erhoben wurde. Sie befragt jeden, der unterschrieben hat.","LOYALTY · THE OLD FILE":"LOYALITÄT · DIE ALTE AKTE","Testify fully and hand over everything you kept":"Vollständig aussagen und alles herausgeben, was Sie behalten haben","You bring your own copies, including the ones that do you no favours, and answer for two days. Cooperation is the only currency the commission accepts, and you have paid in it.":"Sie bringen Ihre eigenen Kopien mit, auch die unangenehmen, und antworten zwei Tage lang. Mitarbeit ist die einzige Währung, die die Kommission annimmt, und Sie haben damit bezahlt.","Explain that you signed what you were handed":"Erklären, dass Sie unterschrieben, was man Ihnen vorlegte","It is true and it is not enough, and the commission publishes the page anyway. You remain in post, smaller in every room you enter.":"Es ist wahr und es genügt nicht, und die Kommission veröffentlicht das Blatt dennoch. Sie bleiben im Amt, kleiner in jedem Raum, den Sie betreten.","Let a subordinate carry the signature":"Einen Untergebenen die Unterschrift tragen lassen","He carries it for a fortnight and then remembers, in writing, who dictated it. The apparatus takes a grade off you to close the matter.":"Er trägt sie zwei Wochen und erinnert sich dann schriftlich daran, wer sie diktiert hat. Der Apparat nimmt Ihnen einen Rang, um die Sache zu schließen.","Have the page removed from the file":"Das Blatt aus der Akte entfernen lassen","Files are copied before commissions read them, which is the first thing anyone learns here. Tampering is its own charge, and it is the one they can prove.":"Akten werden kopiert, bevor Kommissionen sie lesen, das lernt hier jeder zuerst. Manipulation ist ein eigener Vorwurf, und es ist der, den man beweisen kann.","The widow at the gate":"Die Witwe am Tor","The widow of the man whose chair you took stands outside the ministry most mornings with a photograph. People have begun stopping to look at it.":"Die Witwe des Mannes, dessen Sessel Sie übernahmen, steht fast jeden Morgen mit einer Fotografie vor dem Ministerium. Passanten bleiben inzwischen stehen, um sie anzusehen.","Meet her, and be seen listening":"Die Witwe empfangen und beim Zuhören gesehen werden","You bring her inside, sit down, and let it take as long as it takes. She does not forgive you, and she stops coming, and nothing else happens.":"Sie holen sie herein, setzen sich und lassen es so lange dauern, wie es dauert. Sie verzeiht Ihnen nicht, sie kommt nicht mehr, und weiter geschieht nichts.","Send a pension and say nothing in public":"Eine Rente schicken und öffentlich nichts sagen","The money arrives and the photograph stays where it is. Silence reads as guilt at this distance, and the ministry notices the traffic.":"Das Geld kommt an und die Fotografie bleibt, wo sie ist. Schweigen liest sich auf diese Entfernung wie Schuld, und das Ministerium bemerkt den Auflauf.","Have the square cleared of her":"Den Platz von ihr räumen lassen","The square is cleared, and photographed being cleared. Somebody senior decides the ministry needs a smaller face on it and picks yours.":"Der Platz wird geräumt, und die Räumung wird fotografiert. Jemand weiter oben entscheidet, das Ministerium brauche ein kleineres Gesicht, und wählt Ihres.","Have her filed as an enemy of the state":"Sie als Staatsfeindin erfassen lassen","The file is opened and read by a man who knew her husband. What follows is not her arrest, and the cell they use is the old one.":"Die Akte wird angelegt und von einem Mann gelesen, der ihren Mann kannte. Was folgt, ist nicht ihre Verhaftung, und die Zelle, die man nimmt, ist die alte.","The bank kept receipts":"Die Bank hat Belege aufbewahrt","The bank that moved the money for your appointment has been sold, and the new owners are reading everything. A polite man asks whether you would like to discuss a payment made years ago.":"Die Bank, die das Geld für Ihre Ernennung bewegte, ist verkauft worden, und die neuen Eigentümer lesen alles. Ein höflicher Mann fragt, ob Sie über eine Zahlung von damals sprechen möchten.","MONEY · THE OLD PAYMENT":"GELD · DIE ALTE ZAHLUNG","Declare the payment late and pay the penalty":"Die Zahlung nachträglich melden und die Strafe zahlen","You file it yourself, wear the fine, and give one interview about being younger and stupider. It is expensive for a fortnight and then it is over.":"Sie melden es selbst, tragen das Bußgeld und geben ein Interview darüber, jünger und dümmer gewesen zu sein. Es ist zwei Wochen lang teuer und dann vorbei.","Restructure it as a loan you have been repaying":"Sie als Darlehen umschreiben, das Sie zurückzahlen","The paperwork is elegant and the dates are not, and an auditor enjoys the puzzle. You keep the office and acquire a permanent asterisk.":"Die Unterlagen sind elegant und die Daten sind es nicht, und ein Prüfer freut sich über das Rätsel. Sie behalten das Amt und erwerben ein dauerhaftes Sternchen.","Give them the middleman's name":"Ihnen den Namen des Mittelsmanns geben","He is charged, and spends his first afternoon describing the arrangement in full. The party trades your grade for the story ending there.":"Er wird angeklagt und verbringt den ersten Nachmittag damit, die Abmachung vollständig zu schildern. Die Partei tauscht Ihren Rang dafür, dass die Geschichte dort endet.","Pay again, this time for silence":"Noch einmal zahlen, diesmal für Schweigen","The second payment is the one that is illegal on its own, without any reference to the first. Two counts are easier to prove than one, and they prove both.":"Die zweite Zahlung ist die, die schon für sich strafbar ist, ohne jeden Bezug zur ersten. Zwei Anklagepunkte sind leichter zu beweisen als einer, und man beweist beide.","The other buyer":"Der andere Käufer","Somebody else paid for the same post and never received it, and he has decided that being out of pocket is worse than being out of favour. He kept every note.":"Ein anderer hat für denselben Posten bezahlt und ihn nie erhalten, und er hat entschieden, dass Geldverlust schlimmer ist als Ungnade. Er hat jede Notiz behalten.","Admit the arrangement and give up the committee seat":"Die Abmachung zugeben und den Ausschusssitz aufgeben","You resign the one post nobody expected you to resign, and say why. The confession is so complete that his notes become a footnote to it.":"Sie geben genau das Amt auf, bei dem niemand damit gerechnet hat, und sagen warum. Das Geständnis ist so vollständig, dass seine Notizen zur Fußnote darunter werden.","Find him a smaller office and hope it holds":"Ihm ein kleineres Amt beschaffen und hoffen, dass es hält","He takes the office and keeps the notes, which is what a man who once bought a post would do. You are paying rent on this story now, forever.":"Er nimmt das Amt und behält die Notizen, wie es ein Mann tut, der einmal einen Posten gekauft hat. Sie zahlen von jetzt an für immer Miete an diese Geschichte.","Have the party expel him as a fantasist":"Die Partei ihn als Phantasten ausschließen lassen","The expulsion gives him a stage, a grievance and nothing left to lose. You survive it one grade lower than you started.":"Der Ausschluss verschafft ihm eine Bühne und einen Grund zur Klage, und zu verlieren hat er nichts mehr. Sie überleben es einen Rang niedriger als zuvor.","Arrange for his notes to burn with his house":"Seine Notizen mit seinem Haus verbrennen lassen","The house burns and the notes were at his sister's, because he was never stupid. Arson carries its own trial, and yours is short.":"Das Haus brennt, und die Notizen lagen bei seiner Schwester, denn dumm war er nie. Brandstiftung bringt ihren eigenen Prozess mit, und Ihrer ist kurz.","The threat that was written down":"Die Drohung, die aufgeschrieben wurde","One of the men you leaned on that week wrote the conversation down the same evening, dated it, and left it with a lawyer. The lawyer has died and the file is being read.":"Einer der Männer, die Sie in jener Woche unter Druck setzten, schrieb das Gespräch am selben Abend auf, datierte es und ließ es bei einem Anwalt. Der Anwalt ist gestorben, und die Akte wird gelesen.","BACKROOM · THE OLD THREAT":"HINTERZIMMER · DIE ALTE DROHUNG","Acknowledge the conversation and apologise to him directly":"Das Gespräch einräumen und sich bei ihm direkt entschuldigen","You go to his house without press and say the sentence out loud. He accepts it grudgingly and tells the committee the matter is settled, which settles it.":"Sie fahren ohne Presse zu seinem Haus und sprechen den Satz laut aus. Er nimmt es widerwillig an und erklärt dem Ausschuss die Sache für erledigt, womit sie erledigt ist.","Call it a robust exchange between colleagues":"Es einen robusten Austausch unter Kollegen nennen","The phrase survives the week and follows you for years, quoted back at you in rooms where it is not funny. Nothing is proven and nothing is forgotten.":"Die Formulierung übersteht die Woche und folgt Ihnen jahrelang, zitiert in Räumen, in denen sie nicht komisch ist. Nichts wird bewiesen und nichts vergessen.","Let your old aide claim the conversation as his own":"Ihren alten Mitarbeiter das Gespräch übernehmen lassen","He claims it for one afternoon and then produces his notebook, which places you in the room. The office you took that year is the office you give back.":"Er gibt es einen Nachmittag lang als eigenes aus und legt dann sein Notizbuch vor, das Sie in den Raum stellt. Das Amt, das Sie damals nahmen, ist das Amt, das Sie zurückgeben.","Visit the man again, once more":"Den Mann noch ein weiteres Mal besuchen","He recorded the second visit, because a man who wrote down the first one would. Intimidating a witness is the charge, and the file is the evidence.":"Er hat den zweiten Besuch aufgezeichnet, denn wer den ersten aufschrieb, tut auch das. Der Vorwurf lautet Zeugeneinschüchterung, und die Akte ist der Beweis.","The rival who never came back":"Der Rivale, der nie zurückkam","The rival who withdrew after your visit has spent years telling one friend at a time what was said. The friends now fill a room, and a committee has invited all of them.":"Der Rivale, der nach Ihrem Besuch zurücktrat, hat jahrelang einem Freund nach dem anderen erzählt, was gesagt wurde. Die Freunde füllen inzwischen einen Saal, und ein Ausschuss hat sie alle geladen.","Appear before the committee and answer every question":"Vor dem Ausschuss erscheinen und jede Frage beantworten","You sit there for six hours and never once ask for a question to be repeated. The room decides you are a bully who has stopped, which is survivable.":"Sie sitzen sechs Stunden dort und bitten nicht ein einziges Mal um die Wiederholung einer Frage. Der Saal beschließt, Sie seien ein Grobian, der damit aufgehört hat, und das lässt sich überleben.","Send a written statement and skip the room":"Eine schriftliche Erklärung schicken und dem Saal fernbleiben","The empty chair is photographed, and the photograph does the testifying. You are never charged with anything except the absence.":"Der leere Stuhl wird fotografiert, und die Fotografie legt das Zeugnis ab. Angeklagt werden Sie nie, außer wegen der Abwesenheit.","Trade a resignation for the file being closed":"Einen Rücktritt gegen die Schließung der Akte tauschen","The file closes and the trade does not stay private, because trades never do. You leave the post and keep the reputation of a man who paid for quiet.":"Die Akte schließt sich, und der Tausch bleibt nicht privat, denn Tausche bleiben es nie. Sie verlassen das Amt und behalten den Ruf eines Mannes, der für Ruhe bezahlt hat.","Make sure the room stays empty":"Dafür sorgen, dass der Saal leer bleibt","Two of the friends are frightened off and the third goes straight to the committee with the reason. Intimidating witnesses in front of a sitting inquiry cannot be talked down.":"Zwei der Freunde werden abgeschreckt und der dritte geht mit dem Grund direkt zum Ausschuss. Zeugeneinschüchterung vor einem laufenden Untersuchungsausschuss lässt sich nicht kleinreden.","Half a second":"Eine halbe Sekunde","Mid-sentence":"Mitten im Satz","The hour before dawn":"Die Stunde vor dem Morgengrauen","One decision left":"Eine Entscheidung bleibt","Become the leading voice of the opposition":"Zur führenden Stimme der Opposition werden","Take charge of the opposition":"Die Opposition übernehmen"});
 Object.assign(DE_MAP,{"⚠️ Party standing is below the line: the file on you grows every year":"⚠️ Parteiansehen unter der Grenze: Die Akte über Sie wächst jedes Jahr","The precaution is noticed before the danger is, and being seen to be frightened is its own kind of news.":"Die Vorsichtsmaßnahme fällt früher auf als die Gefahr, und sichtbare Angst ist selbst eine Nachricht.","Nothing happens for a month, which is long enough for people to decide you overreacted.":"Einen Monat lang passiert nichts, lange genug, dass alle entscheiden, Sie hätten überreagiert.","The ones you did not warn find out anyway, and they mind the silence more than the risk.":"Die, die Sie nicht gewarnt haben, erfahren es trotzdem, und das Schweigen nehmen sie Ihnen mehr übel als die Gefahr.","Word of it leaks without your version attached, so the story belongs to whoever leaked it.":"Es dringt nach außen, ohne Ihre Version, und damit gehört die Geschichte dem, der sie durchgestochen hat.","The extra guards are a comfort and a signal, and the signal reaches the wrong people first.":"Die zusätzlichen Wachen sind ein Trost und ein Signal, und das Signal erreicht zuerst die Falschen.","Whoever sent it now knows exactly how much you will rearrange your life over it.":"Wer es geschickt hat, weiß jetzt genau, wie weit Sie Ihr Leben dafür umstellen.","The danger passes and the habit of watching the door does not, and it shows in every room.":"Die Gefahr geht vorbei, der Blick zur Tür bleibt, und man sieht es Ihnen in jedem Raum an.","Holding back reads as a position anyway, and it is not the position you would have chosen.":"Zurückhaltung wird ohnehin als Haltung gelesen, und es ist nicht die Haltung, die Sie gewählt hätten."});
+Object.assign(DE_MAP,{"The room goes grey":"Der Raum wird grau","The edges of the room are going grey and everyone around you is moving too slowly. There is time for exactly one thing.":"Die Ränder des Raums werden grau, und alle um Sie herum bewegen sich zu langsam. Zeit bleibt für genau eine Sache.","Say the one word that gets a doctor moving":"Das eine Wort sagen, das einen Arzt in Bewegung setzt","Reach for whatever is in your pocket":"Nach dem greifen, was in Ihrer Tasche ist","Hold on to the nearest arm and stay upright":"Sich am nächsten Arm festhalten und aufrecht bleiben","FATE":"SCHICKSAL","worked against you here.":"hat hier gegen Sie gearbeitet.","It does you good, and it is noticed anyway, by somebody who files it under indulgence.":"Es tut Ihnen gut, und es fällt trotzdem auf, jemandem, der es unter Nachsicht mit sich selbst ablegt.","The small thing spreads the way small things do, one retelling at a time, each a little less kind.":"Die kleine Sache verbreitet sich, wie kleine Sachen es tun: eine Nacherzählung nach der anderen, jede ein wenig unfreundlicher.","You feel better for a week, and the week is exactly when the story about it gets told.":"Eine Woche lang geht es Ihnen besser, und genau in dieser Woche wird die Geschichte darüber erzählt.","Somebody photographs it, and the photograph is unflattering in a way the moment was not.":"Jemand fotografiert es, und das Foto ist unvorteilhaft auf eine Weise, die der Moment nicht war.","It is harmless, and it is precisely the kind of harmless thing people bring up later.":"Es ist harmlos, und es ist genau die Art von harmloser Sache, die man später wieder hervorholt.","Nothing goes wrong, and it still reads as a choice, and the choice reads as a priority.":"Nichts geht schief, und trotzdem liest es sich als Entscheidung, und die Entscheidung liest sich als Priorität.","The people who needed you that afternoon remember where you were instead.":"Die Leute, die Sie an jenem Nachmittag gebraucht hätten, erinnern sich daran, wo Sie stattdessen waren."});
 (function(){
   /* build the pattern table first, then drop those keys from the plain lookups */
   const MARK=/⟦\d+⟧|\{[a-zA-Z]\w*\}/;
@@ -16584,12 +16631,12 @@ function renderPlay(){
     const dbf=G.lastDebuffNote?`<div class="flagnote">⛔ ${G.lastDebuffNote}</div>`:"";
     /* trait help is a boost, not a warning: blue and dotted. stat help: quiet gray, solid.
        when both fire they share one row, split down the middle. */
-    const traitInner=(G.lastTraitNote&&G.player&&!G.player.scenario&&!/works against/.test(G.lastTraitNote))?G.lastTraitNote:null;
+    const traitInner=(G.lastTraitNote&&G.player&&!G.player.scenario)?G.lastTraitNote:null;
     const statInner=G.lastStatMod?(G.lastStatMod.mod>0?`💪 Your ${statShort(G.lastStatMod.stat).toLowerCase()} strengthened this outcome.`:`⚠ Weak ${statShort(G.lastStatMod.stat).toLowerCase()} made this costlier.`):null;
     const TSTYLE="border:1.6px dotted #2b6cb0;color:#1f4e79;background:#eef5fc";
     const SSTYLE="border:1.6px solid #9aa4ab;color:#49525a;background:#f3f5f6";
     let tnote="";
-    if(traitInner&&statInner)tnote=`<div style="display:flex;gap:6px"><div class="flagnote" style="flex:1;${TSTYLE};font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${traitInner}</div><div class="flagnote" style="flex:1;${SSTYLE};font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${statInner}</div></div>`;
+    if(traitInner&&statInner)tnote=`<div class="flagnote" style="${TSTYLE};line-height:1.55">${traitInner}</div><div class="flagnote" style="${SSTYLE}">${statInner}</div>`;
     else if(traitInner)tnote=`<div class="flagnote" style="${TSTYLE}">${traitInner}</div>`;
     else if(statInner)tnote=`<div class="flagnote" style="${SSTYLE}">${statInner}</div>`;
     const smn="";
@@ -16667,7 +16714,8 @@ function renderMicro(){
   }
   const order=G.microOrder&&G.microOrder.length===m.o.length?G.microOrder:m.o.map((_,i)=>i);
   const opts=order.map(i=>{const t=microTagFor(m.o[i][0]);return `<div class="choice" onclick="chooseMicro(${i})"><span class="tag ${t}">${t}</span><span>${(G.microLabels&&G.microLabels[i])||m.o[i][0]}</span></div>`;}).join("");
-  const desc=`<div class="etext">${subst(G.microDesc||quickDesc(m))}</div>`;
+  const dtxt=(G.microDesc!==undefined&&G.microDesc!==null)?G.microDesc:quickDesc(m);
+  const desc=dtxt?`<div class="etext">${subst(dtxt)}</div>`:"";
   return `${hud()}<div class="card"><div class="cat">⚡ ${m.c}</div><div class="etitle" style="font-size:16.5px;margin-top:6px">${subst(m.q)}</div>${desc}<div class="choices">${opts}</div></div>`;
 }
 function sdelta(v,invert,isMoney){
