@@ -11893,6 +11893,13 @@ const MEDIEVAL_REFUSAL_BACKFIRES=[
       kitchen is not a crackdown on a square.
    3. When in doubt, the generic pools win: they assume nothing but "you acted" / "you held back". */
 function backfirePoolFor(ch,e){
+  /* The newer themes fell through to the label tests and landed in the refusal pool, so telling
+     the country the true number was answered with "your restraint is retold as indecision".
+     Waiting and refusing to spend really are refusals; the other four are not. */
+  const _tag=String((ch&&ch.tag)||"");
+  if(_tag==="CANDID"||_tag==="THEATRICAL")return BACKFIRE_POOLS.active;
+  if(_tag==="MERCIFUL")return BACKFIRE_POOLS.concession;
+  if(_tag==="VENGEFUL")return BACKFIRE_POOLS.crackdown||BACKFIRE_POOLS.active;
   const c=String((ch&&ch.label)||"").toLowerCase();
   const w=(String((e&&e.title)||"")+" "+String((e&&e.text)||"")).toLowerCase();
   const P=BACKFIRE_POOLS;
@@ -12059,10 +12066,30 @@ function applyStatPressure(){
 /* statVal aliases rhetoric onto charisma, so the old rhetoric weight now reads the live stat
    instead of a number that stopped moving when rhetoric was retired */
 function computeCapital(){const w=sys().weights,p=G.player;let s=0;for(const k in w){s+=statVal(k)*w[k];}return Math.round(s);}
-function checkTraits(){const p=G.player,add=t=>{if(!p.traits.includes(t))p.traits.push(t);};
-  if(p.stats.charisma>=80)add("orator");if(p.scandalsSurvived>=3)add("teflon");
-  if(p.stats.approval>=82)add("peoples");if(p.regimeFavor!==undefined&&p.regimeFavor>=85)add("untouchable");
-  if(p.flags.war_hero)add("warlord");if(p.flags.emergency_powers)add("strongman");if(p.flags.heir_groomed)add("dynast");
+/* These seven used to be pushed straight onto p.traits with no announcement at all: the player
+   gained a real odds bonus and was never told, and the exported run showed traits with no award
+   behind them. They now arrive the same way every other trait does. */
+function checkTraits(){
+  const p=G.player;
+  const add=(t,why)=>{
+    if(p.traits.includes(t))return;
+    p.traits.push(t);
+    const nm=(typeof traitName==="function")?traitName(t):t;
+    const fx=(typeof TRAIT_FX!=="undefined"&&TRAIT_FX[t])?TRAIT_FX[t]:"";
+    try{
+      G.traitToast="🏅 <i>"+deT(nm)+"</i>: "+deT(why)+(fx?" <b>"+deT(fx)+"</b>":"");
+      G.traitToastKind=(typeof traitKind==="function")?traitKind(t):"good";
+    }catch(err){}
+    (p.traitLog=p.traitLog||[]).push({year:p.year,id:t,name:nm,why:why,effect:fx});
+    (G.traitsJustGranted=G.traitsJustGranted||[]).push(t);
+  };
+  if(p.stats.charisma>=80)add("orator","A room stops rustling when you stand up.");
+  if(p.scandalsSurvived>=3)add("teflon","Three scandals, and not one of them stuck.");
+  if(p.stats.approval>=82)add("peoples","The country likes you more than it likes your party.");
+  if(p.regimeFavor!==undefined&&p.regimeFavor>=85)add("untouchable","The regime trusts you further than it trusts itself.");
+  if(p.flags.war_hero)add("warlord","You won the war you were handed.");
+  if(p.flags.emergency_powers)add("strongman","You took emergency powers and the machine obeyed at once.");
+  if(p.flags.heir_groomed)add("dynast","You groomed a successor in the open.");
 }
 /* Policy costs 30% more, so the grant no longer covers a term of free spending. The point is that
    an unspent budget CARRIES OVER, bank two quiet years and you can afford the thing that matters. */
@@ -13127,14 +13154,14 @@ function buildPostSummary(R){
   const worldReady=worldStagePulseReady();
   const worldChance=clamp(.82+p.worldProgress*.12+(career>=12?.06:0)+worldAscentBias()/100,.82,.98);
   const worldGap=p.lastWorldGateYear===undefined||p.year-p.lastWorldGateYear>=3;
-  if(worldReady&&worldGap&&!p.flags.world_stage_mandate&&rng()<worldChance*worldPotChance())G.postSummary.push(makeWorldGate());
-  else if(worldReady&&p.flags.world_stage_mandate&&p.year>=(p.worldDueYear||9999))G.postSummary.push(makeWorldGate());
+  if(worldReady&&worldGap&&!p.flags.world_stage_mandate&&rng()<worldChance*worldPotChance())G.postSummary.push(capPromoOdds(makeWorldGate(),worldOddsCap(),93));
+  else if(worldReady&&p.flags.world_stage_mandate&&p.year>=(p.worldDueYear||9999))G.postSummary.push(capPromoOdds(makeWorldGate(),worldOddsCap(),93));
 }
 /* how readily the world stage even opens to you, talent decides who gets the invitation, shaping the World-Leader rate by starting age */
 /* Starting late costs you the world stage through `potential`, which is an integer: nudging
    the age bonus does nothing until it crosses a rounding boundary. This table is the fine lever,
    applied to the gate itself, so each entry rung can be tuned to its own measured rate. */
-const WORLD_RUNG_MULT=[0.6,0.47,0.75,1.9,9.2];
+const WORLD_RUNG_MULT=[1.05,0.82,1.3,3.2,15];
 function worldPotChance(){
   const p=G.player,base=({5:0.40,4:0.24,3:0.14,2:0.07,1:0.02}[p.potential||3])||0.14;
   const mult=(p.startBase===undefined)?1:(WORLD_RUNG_MULT[p.startBase]===undefined?1:WORLD_RUNG_MULT[p.startBase]);
@@ -13156,7 +13183,7 @@ function worldStagePulseReady(){
        than it did: at /3 an entry at fifty reached the top near sixty-five and still owed the world
        another decade, which no career of that length survives. */
     const late=Math.max(0,Math.round((ageAtTop-56)/2));
-    p.worldGateMinYears=clamp(rint(12,16)-late,4,16);
+    p.worldGateMinYears=clamp(rint(8,12)-late,3,16);
   }
   const yearsTop=(p.topSinceYear===undefined)?0:(p.year-p.topSinceYear);
   if(yearsTop<p.worldGateMinYears)return false;
@@ -13166,8 +13193,8 @@ function worldStagePulseReady(){
 function checkWorldStagePulse(){
   const p=G.player;if(!worldStagePulseReady())return false;
   const due=(p.lastWorldPulse===undefined||p.year-p.lastWorldPulse>=3)&&(p.lastWorldGateYear===undefined||p.year-p.lastWorldGateYear>=3);
-  if(p.flags.world_stage_mandate&&p.year>=(p.worldDueYear||9999)){p.lastWorldPulse=p.year;presentSpecial(makeWorldGate());return true;}
-  if(due&&rng()<0.12*worldPotChance()){p.lastWorldPulse=p.year;presentSpecial(makeWorldGate());return true;}
+  if(p.flags.world_stage_mandate&&p.year>=(p.worldDueYear||9999)){p.lastWorldPulse=p.year;presentSpecial(capPromoOdds(makeWorldGate(),worldOddsCap(),93));return true;}
+  if(due&&rng()<0.12*worldPotChance()){p.lastWorldPulse=p.year;presentSpecial(capPromoOdds(makeWorldGate(),worldOddsCap(),93));return true;}
   return false;
 }
 function worldStageReadinessNote(){
@@ -13342,13 +13369,16 @@ function makeTermLimitGate(){
    exactly on it: a seven rung career was seven near certainties. The ceiling now falls as the
    ladder narrows, so the bottom is generous and the summit is not. */
 function promoOddsCap(){return clamp(0.88-0.12*natTier(),0.74,0.88);}
-function capPromoOdds(card,maxOdds){
+function capPromoOdds(card,maxOdds,maxDiff){
   if(!card||!card.choices||!G.player)return card;
+  /* the climb gates stop at 80, but the world stage has to be allowed to get genuinely hard or
+     its choices sit above the ceiling however high the difficulty is pushed */
+  const top=(typeof maxDiff==="number")?maxDiff:80;
   const keep=[G.pendingTraitOdds,G.pendingTraitOddsList,G._etBoost,G._etBoosts];
   for(const ch of card.choices){
     if(!ch.check||typeof ch.check.difficulty!=="number")continue;
     let guard=0;
-    while(guard++<40&&ch.check.difficulty<80&&checkOdds(ch,card)>maxOdds)ch.check.difficulty++;
+    while(guard++<60&&ch.check.difficulty<top&&checkOdds(ch,card)>maxOdds)ch.check.difficulty++;
   }
   G.pendingTraitOdds=keep[0];G.pendingTraitOddsList=keep[1];G._etBoost=keep[2];G._etBoosts=keep[3];
   return card;
@@ -15452,6 +15482,10 @@ function makePromotionGate(nextName){
    ]};
 }
 
+/* The climax of the game was a formality: with a strong leader every world-gate choice sat on
+   the 96% clamp, on the first gate and again on the final summit. The world stage is now the
+   hardest roll in the game, and the summit is harder than the gate that leads to it. */
+function worldOddsCap(){try{return (G.player&&G.player.flags&&G.player.flags.world_stage_mandate)?0.68:0.78;}catch(e){return 0.78;}}
 /* -------- WORLD LEADER endgame gate (very hard, system-specific) -------- */
 function makeWorldGate(){
   const p=G.player,S=sys();p.lastWorldGateYear=p.year;
@@ -16483,6 +16517,7 @@ Object.assign(DE_MAP,{"PATIENT":"GEDULDIG","MERCIFUL":"GNÄDIG","THEATRICAL":"TH
 Object.assign(DE_MAP,{"improved odds":"verbesserte die Chancen","helped":"half","Strong":"Starke","cost you":"kostete Sie"});
 Object.assign(DE_MAP,{"You settle the whole bill yourself at the end of the night, without once looking at it. The club chairman remembers your name for years afterward.":"Sie begleichen am Ende des Abends die ganze Rechnung selbst, ohne ein einziges Mal hinzusehen. Der Vorsitzende des Clubs merkt sich Ihren Namen noch jahrelang."});
 Object.assign(DE_MAP,{"strong enough":"stark genug","too weak":"zu schwach"});
+Object.assign(DE_MAP,{"A room stops rustling when you stand up.":"Ein Saal hört auf zu rascheln, wenn Sie aufstehen.","Three scandals, and not one of them stuck.":"Drei Skandale, und keiner davon ist haften geblieben.","The country likes you more than it likes your party.":"Das Land mag Sie mehr als Ihre Partei.","The regime trusts you further than it trusts itself.":"Das Regime traut Ihnen weiter als sich selbst.","You won the war you were handed.":"Sie haben den Krieg gewonnen, den man Ihnen übergab.","You took emergency powers and the machine obeyed at once.":"Sie haben Notstandsbefugnisse übernommen, und der Apparat gehorchte sofort.","You groomed a successor in the open.":"Sie haben offen einen Nachfolger aufgebaut."});
 (function(){
   /* build the pattern table first, then drop those keys from the plain lookups */
   const MARK=/⟦\d+⟧|\{[a-zA-Z]\w*\}/;
