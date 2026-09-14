@@ -11461,6 +11461,10 @@ function chooseOption(i){
   if(ch.check){const st=checkStat(ch,e),val=statVal(st);let bonus=0;
     if(p.traits.includes("orator")&&(st==="charisma"||statAlias(st)==="charisma"))bonus+=0.08;
     let ps=checkOdds(ch,e);
+    /* HARD CLIMB CEILING: raising the difficulty cannot hold this on its own, because the trait
+       bonuses inside checkOdds are added afterwards and a stacked climber returns to the 96%
+       clamp regardless. A climb is capped here, on the number actually rolled. */
+    if(choiceRaisesOffice(ch))ps=Math.min(ps,promoOddsCap());
     G.lastOddsBefore=ps;
     let win=rng()<ps;
     o=win?ch.onSuccess:ch.onFailure;G.lastResultWin=win;
@@ -12657,16 +12661,16 @@ function checkPromotionDue(){
      there arrive as a concrete succession, the incumbent dies, falls, flees or resigns */
   if(sys().group!=="monarchy"&&!p.scenario&&p.office===topNat()-1&&rng()<0.5){
     const pool=EVENTS.filter(e=>/^succ_/.test(e.id||"")&&officeKeyOK(e)&&!p.seen.includes(e.id));
-    if(pool.length){notePromoOffer();presentSpecial(pool[rint(0,pool.length-1)]);return true;}
+    if(pool.length){notePromoOffer();presentSpecial(capClimbCopy(pool[rint(0,pool.length-1)]));return true;}
   }
   notePromoOffer();
   if(!p.bigLeapDone&&doubleStepEarned()&&rng()<0.5){   /* earning the surge makes the leap possible, not automatic */
     /* the surge case: a genuine two-rung leap, capped at the highest national office */
     const target=Math.min(topNat(),p.office+2);
     p.lastBigJumpYear=p.year;p.bigLeapDone=1;
-    presentSpecial(makeDoubleLeap(sys().ladder[target],target));
+    presentSpecial(capPromoOdds(makeDoubleLeap(sys().ladder[target],target),promoOddsCap(),88));
   } else {
-    presentSpecial(capPromoOdds(makePromotionGate(sys().ladder[p.office+1]),promoOddsCap()));
+    presentSpecial(capPromoOdds(makePromotionGate(sys().ladder[p.office+1]),promoOddsCap(),88));
   }
   return true;
 }
@@ -13142,7 +13146,7 @@ function buildPostSummary(R){
   /* the term limit used to end this function, which quietly denied every term-limited president
      the world stage: the gate is queued, and the rest of the checks still run */
   if(R.termLimited&&!p.flags.world_leader)G.postSummary.push(makeTermLimitGate());
-  else if(R.promoteEligible&&p.office<topNat()&&!onScript()&&promoOfferAllowed()&&climbCooldownOK()&&rng()<promoFriction().freq){G.postSummary.push(capPromoOdds(makePromotionGate(sys().ladder[p.office+1]),promoOddsCap()));notePromoOffer();}
+  else if(R.promoteEligible&&p.office<topNat()&&!onScript()&&promoOfferAllowed()&&climbCooldownOK()&&rng()<promoFriction().freq){G.postSummary.push(capPromoOdds(makePromotionGate(sys().ladder[p.office+1]),promoOddsCap(),88));notePromoOffer();}
   else if(p.office<topNat()&&promoOfferAllowed()){
     /* STAGNATION: no climb for ~8 years -> a country-flavored chance to force a breakthrough */
     if(p.lastPromoteYear===undefined)p.lastPromoteYear=(p.careerStartYear||2026);
@@ -13161,7 +13165,7 @@ function buildPostSummary(R){
 /* Starting late costs you the world stage through `potential`, which is an integer: nudging
    the age bonus does nothing until it crosses a rounding boundary. This table is the fine lever,
    applied to the gate itself, so each entry rung can be tuned to its own measured rate. */
-const WORLD_RUNG_MULT=[0.92,0.6,1.3,3.2,15];
+const WORLD_RUNG_MULT=[1.5,1.0,2.1,5.2,24];
 function worldPotChance(){
   const p=G.player,base=({5:0.40,4:0.24,3:0.14,2:0.07,1:0.02}[p.potential||3])||0.14;
   const mult=(p.startBase===undefined)?1:(WORLD_RUNG_MULT[p.startBase]===undefined?1:WORLD_RUNG_MULT[p.startBase]);
@@ -13368,7 +13372,23 @@ function makeTermLimitGate(){
 /* The ceiling used to be a flat 90% at every rung, and with a few climb traits every gate sat
    exactly on it: a seven rung career was seven near certainties. The ceiling now falls as the
    ladder narrows, so the bottom is generous and the summit is not. */
-function promoOddsCap(){return clamp(0.88-0.12*natTier(),0.74,0.88);}
+/* 80% is the hard ceiling on any climb, whatever the stats, the traits or the momentum behind
+   it. From there it still falls as the ladder narrows, so the summit is the hardest rung. */
+function promoOddsCap(){return clamp(0.80-0.06*natTier(),0.74,0.80);}
+/* Succession cards live in the shared EVENTS array, so capping one in place would raise its
+   difficulty permanently for every later career in the same session. This caps a copy. */
+function capClimbCopy(ev){
+  let card;
+  try{card=JSON.parse(JSON.stringify(ev));}catch(e){return ev;}
+  return capPromoOdds(card,promoOddsCap(),88);
+}
+/* The finished odds of a climb, ceiling included. Used by anything that needs to show or test
+   the real number rather than the raw roll. */
+function climbOdds(ch,e){
+  let ps=checkOdds(ch,e);
+  if(choiceRaisesOffice(ch))ps=Math.min(ps,promoOddsCap());
+  return ps;
+}
 function capPromoOdds(card,maxOdds,maxDiff){
   if(!card||!card.choices||!G.player)return card;
   /* the climb gates stop at 80, but the world stage has to be allowed to get genuinely hard or
@@ -13378,7 +13398,7 @@ function capPromoOdds(card,maxOdds,maxDiff){
   for(const ch of card.choices){
     if(!ch.check||typeof ch.check.difficulty!=="number")continue;
     let guard=0;
-    while(guard++<60&&ch.check.difficulty<top&&checkOdds(ch,card)>maxOdds)ch.check.difficulty++;
+    while(guard++<220&&ch.check.difficulty<top&&checkOdds(ch,card)>maxOdds)ch.check.difficulty++;
   }
   G.pendingTraitOdds=keep[0];G.pendingTraitOddsList=keep[1];G._etBoost=keep[2];G._etBoosts=keep[3];
   return card;
