@@ -74,7 +74,6 @@
   .drawercol{width:100%}
   .drawerfig{order:-1}
 }
-.pswatch{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
 .figwrap{display:flex;flex-direction:column;align-items:center;gap:3px;margin:0}
 .figbox{width:calc(var(--figh) * 0.652);height:var(--figh)}
 .drawerfig .figcap{max-width:104px;line-height:1.25}
@@ -330,11 +329,11 @@ const DISPOSITIONS=[
    same profile is a party in the Republic, a faction inside the Party in the Directorate, a bloc
    in Zahran and a house at court in Aldmere. */
 const CIRCLES=[
- {id:"conservatives",icon:"⚜️",color:"#1f3f7a",mods:{morale:15,integrity:3},desc:"Order, family, faith in institutions. Steady and principled; keeps your secrets, and cannot call in a favour.",names:{old_republic:"Conservative Party",marran:"Conservative Union",directorate:"Conservative Faction",zahran:"Traditionalist Conservatives",aldmere:"The Conservative Lords"}},
- {id:"liberals",icon:"🧭",color:"#e07b20",mods:{charisma:4,partyStanding:4,integrity:-4},desc:"Reform, markets, media polish. Brilliant strategists, and the plan in the room is never quite yours.",names:{old_republic:"Liberal Democrats",marran:"Progressive Liberals",directorate:"Liberal Reform Faction",zahran:"Liberal Modernisers",aldmere:"The Liberal Chancery"}},
- {id:"socdem",icon:"✊",color:"#c0392b",mods:{partyStanding:10,baseLoyalty:-2},desc:"The mass party and its machine. Enormous backing, and none of it belongs to you.",names:{old_republic:"Social Democratic Party",marran:"Social Democrats",directorate:"Socialist Mainstream Faction",zahran:"Social Democratic Front",aldmere:"The Social Democratic Estates"}},
- {id:"greens",icon:"🌿",color:"#3a8a3a",mods:{baseLoyalty:10,approval:3},desc:"Grassroots, loud, loyal and impossible to steer. The energy is real and nobody holds the wheel.",names:{old_republic:"Green Party",marran:"Green Alliance",directorate:"Youth League Greens",zahran:"Green Street Movement",aldmere:"The Green Commons"}},
- {id:"libertarians",icon:"🏦",color:"#c9a24a",mods:{nerve:-2},netWorth:600,desc:"Low taxes, open markets, donor money. Funded before you arrived, and the strings are long enough to be invisible.",names:{old_republic:"Free Libertarians",marran:"Enterprise Liberals",directorate:"Free Market Faction",zahran:"Libertarian Merchant Houses",aldmere:"The Free Guilds"}},
+ {id:"conservatives",textColor:"#1f3f7a",icon:"⚜️",color:"#1f3f7a",mods:{morale:15,integrity:3},desc:"Order, family, faith in institutions. Steady and principled; keeps your secrets, and cannot call in a favour.",names:{old_republic:"Conservative Party",marran:"Conservative Union",directorate:"Conservative Faction",zahran:"Traditionalist Conservatives",aldmere:"The Conservative Lords"}},
+ {id:"liberals",textColor:"#a85c18",icon:"🧭",color:"#e07b20",mods:{charisma:4,partyStanding:4,integrity:-4},desc:"Reform, markets, media polish. Brilliant strategists, and the plan in the room is never quite yours.",names:{old_republic:"Liberal Democrats",marran:"Progressive Liberals",directorate:"Liberal Reform Faction",zahran:"Liberal Modernisers",aldmere:"The Liberal Chancery"}},
+ {id:"socdem",textColor:"#c0392b",icon:"✊",color:"#c0392b",mods:{partyStanding:10,baseLoyalty:-2},desc:"The mass party and its machine. Enormous backing, and none of it belongs to you.",names:{old_republic:"Social Democratic Party",marran:"Social Democrats",directorate:"Socialist Mainstream Faction",zahran:"Social Democratic Front",aldmere:"The Social Democratic Estates"}},
+ {id:"greens",textColor:"#378337",icon:"🌿",color:"#3a8a3a",mods:{baseLoyalty:10,approval:3},desc:"Grassroots, loud, loyal and impossible to steer. The energy is real and nobody holds the wheel.",names:{old_republic:"Green Party",marran:"Green Alliance",directorate:"Youth League Greens",zahran:"Green Street Movement",aldmere:"The Green Commons"}},
+ {id:"libertarians",textColor:"#8d7134",icon:"🏦",color:"#c9a24a",mods:{nerve:-2},netWorth:600,desc:"Low taxes, open markets, donor money. Funded before you arrived, and the strings are long enough to be invisible.",names:{old_republic:"Free Libertarians",marran:"Enterprise Liberals",directorate:"Free Market Faction",zahran:"Libertarian Merchant Houses",aldmere:"The Free Guilds"}},
 ];
 /* every id the game has ever written to a save, a share link or a scenario still resolves */
 const CIRCLE_TO_PARTY={family:"conservatives",shark:"liberals",apparatus:"socdem",machine:"socdem",
@@ -16930,7 +16929,7 @@ function renderShare(){
       <div class="wholine">💰 Net worth <b>${money(p.netWorth)}</b></div>
       ${traitBadge}
     </div>
-    <button class="btn btn-cta" style="width:100%" onclick="beginRun()">${de?"BEGINNEN":"BEGIN"}</button>
+    <button class="btn btn-cta" style="width:calc(100% - 40px);margin:16px 20px 0;padding:13px;font-size:15px" onclick="beginRun()">${de?"BEGINNEN":"BEGIN"}</button>
     <button class="btn btn-ghost" onclick="backToOffers()">← ${de?"Zurück zu den Angeboten":"Back to the offers"}</button>
   </div>`;
   }
@@ -17000,7 +16999,7 @@ function stepBackground(){
 function stepParty(){
   const ctry=(G.setup&&G.setup.country)||"old_republic";
   const opts=CIRCLES.map(function(o){
-    return `<div class="opt" onclick="pickCreate('circle','${o.id}')"><div class="ot"><span class="pswatch" style="background:${o.color}"></span>${o.icon} ${partyLabel(o,ctry)}</div><div class="od">${o.desc}</div>${modChips(o.mods,o.netWorth)}</div>`;
+    return `<div class="opt" onclick="pickCreate('circle','${o.id}')"><div class="ot" style="color:${o.textColor||o.color}">${partyLabel(o,ctry)}</div><div class="od">${o.desc}</div>${modChips(o.mods,o.netWorth)}</div>`;
   }).join("");
   return `<div class="sechead">YOUR PARTY</div><div class="secsub">The people you answer to, and what they are worth to you.</div>${opts}`;
 }
