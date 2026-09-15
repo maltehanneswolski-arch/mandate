@@ -10396,7 +10396,12 @@ function finalizeStart(age,rung,forceSeed){
   /* every run is introduced: you meet the person before you play them */
   G.pendingStart={age:age,rung:rung};G.shareCopied=null;G.screen="share";render();
 }
-function beginRun(){G.pendingStart=null;G.screen="play";startYear();}
+function beginRun(){
+  G.pendingStart=null;
+  /* the intro page can reroll names and genders freely: play always starts from the pinned seed */
+  if(G.runSeed!==undefined)G.seed=G.runSeed>>>0;
+  G.screen="play";startYear();
+}
 /* the post is not committed until BEGIN, so stepping back simply shows the offers again */
 function backToOffers(){G.pendingStart=null;G.screen="card";render();}
 function createBack(){if(G.createStep<=0){G.screen="home";render();return;}G.createStep--;render();}
@@ -16531,7 +16536,9 @@ function pressIntro(p,origin,ctry,S){
    hardliner:[`A former officer steps into politics promising order. Supporters salute; civil-libertarians reach for their coats.`,
               `${H}. ${ln} brings barracks discipline to a soft profession. Admirers call it backbone; opponents call it a warning.`]
   };
-  const arr=V[origin.id]||V.scholar;return arr[rint(0,arr.length-1)];
+  const arr=V[origin.id]||V.scholar;
+  /* keyed off the run seed, never drawn from the shared stream: rendering must not move the world */
+  return arr[wrint("press_intro",0,arr.length-1,true)];
 }
 function countrySituation(c,S){
   const econ=econLabel(c.economy).toLowerCase();
