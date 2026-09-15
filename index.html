@@ -68,8 +68,14 @@
   .drawerbody{display:flex;gap:10px;align-items:flex-start}
 .drawercol{flex:1 1 auto;min-width:0}
 .drawerfig{flex:0 0 auto;padding-top:2px}
-@media (max-width:420px){.drawerfig{display:none}}
+/* the phone has no room for two columns, so the figure goes above the bars at full size */
+@media (max-width:430px){
+  .drawerbody{flex-direction:column;align-items:center;gap:8px}
+  .drawercol{width:100%}
+  .drawerfig{order:-1}
+}
 .figwrap{display:flex;flex-direction:column;align-items:center;gap:3px;margin:0}
+.figbox{width:calc(var(--figh) * 0.652);height:var(--figh)}
 .drawerfig .figcap{max-width:104px;line-height:1.25}
 .figbox svg{width:100%;height:100%;display:block}
 .figcap{font-size:11px;font-weight:800;letter-spacing:.4px;opacity:.62;text-align:center}
@@ -10387,9 +10393,8 @@ function finalizeStart(age,rung,forceSeed){
   else if(G.lockedSeed!==undefined)G.seed=G.lockedSeed>>>0;   /* a copied link promised this exact world */
   G.lockedSeed=undefined;
   G.runSeed=(G.seed>>>0);   /* the world's identity: results and shared beats key off it */
-  /* only a guest arriving by link sees the intro card; your own run simply begins */
-  if(G.sharedRun){G.pendingStart={age:age,rung:rung};G.shareCopied=null;G.screen="share";render();}
-  else{G.pendingStart=null;G.screen="play";startYear();}
+  /* every run is introduced: you meet the person before you play them */
+  G.pendingStart={age:age,rung:rung};G.shareCopied=null;G.screen="share";render();
 }
 function beginRun(){G.pendingStart=null;G.screen="play";startYear();}
 function createBack(){if(G.createStep<=0){G.screen="home";render();return;}G.createStep--;render();}
@@ -16840,15 +16845,20 @@ function renderShare(){
   const de=G.lang==="de";
   const post=(S.ladder&&S.ladder[p.office])||"office";
   const lead=de
-    ? "Sie spielen eine Welt, die jemand anderes gezeichnet hat: dasselbe Land, derselbe Einstieg, dieselben Ereignisse in denselben Jahren. Die Entscheidungen gehören ganz Ihnen."
-    : "You are about to play a world someone else drew: the same country, the same starting post, the same events in the same years. The decisions are yours alone.";
+    ? (G.sharedRun
+        ? "Sie spielen eine Welt, die jemand anderes gezeichnet hat: dasselbe Land, derselbe Einstieg, dieselben Ereignisse in denselben Jahren. Die Entscheidungen gehören ganz Ihnen."
+        : "Das sind Sie, und hier fangen Sie an. Von hier an schreibt jede Entscheidung die Laufbahn, und keine davon lässt sich zurücknehmen.")
+    : (G.sharedRun
+        ? "You are about to play a world someone else drew: the same country, the same starting post, the same events in the same years. The decisions are yours alone."
+        : "This is you, and this is where you begin. From here every decision writes the career, and not one of them can be taken back.");
   const rival=G.rivalResult?`<div style="margin-top:10px;background:#fdf6e0;border:1.6px dotted #b8860b;border-radius:12px;padding:8px 11px;font-size:12.5px;font-weight:800;color:#7a5b00">${de?"Die Marke, die es zu schlagen gilt":"The score to beat"}: ${G.rivalResult.n} · ${deT(G.rivalResult.o)} · ${G.rivalResult.s} ${de?"Punkte":"points"}</div>`:"";
   const orig=ORIGINS.find(x=>x.id===G.setup.origin),circ=CIRCLES.find(x=>x.id===G.setup.circle);
   const setupLine=`<div class="muted" style="font-weight:700;font-size:12.5px;margin-top:3px">${orig?(orig.icon?orig.icon+" ":"")+deT(orig.name):""}${circ?" · "+(circ.icon?circ.icon+" ":"")+deT(circ.name):""}</div>`;
   const tk=ORIGIN_TRAIT[G.setup.origin],tr0=tk&&TRAITS[tk];
   const traitBadge=tr0?`<div style="margin-top:9px"><span class="tchip" style="${traitChipStyle(tk,true)}">★ ${deT(tr0.name)}</span><div class="muted" style="font-size:11.5px;font-weight:700;margin-top:4px;line-height:1.5">${deT(tr0.desc||"")}</div></div>`:"";
   return `<div class="card">
-    <div class="dsub" style="margin-top:0">${de?"EIN GETEILTER LAUF":"A SHARED RUN"}</div>
+    <div class="dsub" style="margin-top:0">${G.sharedRun?(de?"EIN GETEILTER LAUF":"A SHARED RUN"):(de?"DAS SIND SIE":"THIS IS YOU")}</div>
+    ${playerFigureHtml(190,false)}
     <div style="font-size:19px;font-weight:900;letter-spacing:.2px;margin:2px 0">${p.name}</div>
     <div class="muted" style="font-weight:700;font-size:13px;line-height:1.5">${c.flag} ${c.name} · ${deT(post)} · ${p.age} · ${p.year}</div>
     ${setupLine}
@@ -17537,9 +17547,8 @@ function playerFigureHtml(px,caption){
   if(!st)return "";
   let svg="",R=null;
   try{svg=FIGURE.draw(st);R=FIGURE.resolve(st);}catch(e){return "";}
-  const w=Math.round(px*300/460);
   const cap=(caption&&R)?`<div class="figcap">${deT(R.postName)} \u00b7 ${R.age}</div>`:"";
-  return `<div class="figwrap"><div class="figbox" style="width:${w}px;height:${px}px">${svg}</div>${cap}</div>`;
+  return `<div class="figwrap" style="--figh:${px}px"><div class="figbox">${svg}</div>${cap}</div>`;
 }
 function drawer(){
   const p=G.player,S=sys();
