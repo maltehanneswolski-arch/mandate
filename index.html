@@ -10397,6 +10397,8 @@ function finalizeStart(age,rung,forceSeed){
   G.pendingStart={age:age,rung:rung};G.shareCopied=null;G.screen="share";render();
 }
 function beginRun(){G.pendingStart=null;G.screen="play";startYear();}
+/* the post is not committed until BEGIN, so stepping back simply shows the offers again */
+function backToOffers(){G.pendingStart=null;G.screen="card";render();}
 function createBack(){if(G.createStep<=0){G.screen="home";render();return;}G.createStep--;render();}
 function approachList(){return APPROACHES[SYSTEMS[G.setup.system].group];}
 function avg(st){let s=0;STAT_KEYS.forEach(k=>s+=st[k]);return s/STAT_KEYS.length;}
@@ -16553,16 +16555,8 @@ function renderCard(){
   return `<div class="cardwrap">
     <div class="cardhero">
       <div class="chero-flag">${ctry.flag}</div>
-      <div class="chero-name">${p.name}</div>
-      <div class="chero-sub">${honorific(p.gender)}. ${p.name.split(" ").slice(-1)[0]} · ${origin.name} · ${ctry.name}</div>
-      <div class="gender">${gsel('m')}${gsel('f')}${gsel('x')}<button class="gbtn reroll" onclick="rerollName()">⟳ New name</button></div>
-    </div>
-    <div class="csect"><div class="clabel">THE WORD ON THE STREET</div><div class="cpress">“${pressIntro(p,origin,ctry,S)}”</div></div>
-    <div class="csect"><div class="clabel">${ctry.name.toUpperCase()}. THE SITUATION</div><div class="csit">${countrySituation(ctry,S)}</div></div>
-    <div class="csect"><div class="clabel">WHO YOU ARE</div>
-      <div class="wholine">${origin.icon} <b>${origin.name}</b></div>
-      <div class="wholine">${circle.icon} <b>${circle.name}</b></div>
-      <div class="wholine">💰 Net worth <b>${money(p.netWorth)}</b></div>
+      <div class="chero-name">${ctry.name}</div>
+      <div class="chero-sub">${S.name} · ${p.year}</div>
     </div>
     <div class="csect"><div class="clabel">THE OFFERS ON YOUR DESK</div><div class="csub">Each post is a different life. The senior ones hand you power from the first morning, but the years behind you are already spent; the humble ones give you nothing except time, and time is what great careers are made of. Choose where your story begins.</div><div class="offers">${offers}</div></div>
     <button class="btn btn-ghost" onclick="cardBack()">← Back to setup</button>
@@ -16859,13 +16853,31 @@ function renderShare(){
   /* your own run has just come off the character page, so this says only what that page could not:
    the post you took. A guest arriving by link has seen nothing yet and gets the whole card. */
   if(!G.sharedRun){
-    return `<div class="card">
-    <div class="dsub" style="margin-top:0">${de?"DAS SIND SIE":"THIS IS YOU"}</div>
-    ${playerFigureHtml(190,false)}
-    <div style="font-size:17px;font-weight:900;letter-spacing:.2px;margin:6px 0 2px">${deT(post)}</div>
-    <div class="muted" style="font-weight:700;font-size:13px;line-height:1.5">${c.flag} ${p.age} · ${p.year}</div>
-    <div style="height:14px"></div>
+    const SY=SYSTEMS[G.setup.system];
+    const gsel=g=>`<button class="gbtn ${p.gender===g?'on':''}" onclick="pickGender('${g}')">${g==='m'?'♂ Male':g==='f'?'♀ Female':'⚧ Non-binary'}</button>`;
+    return `<div class="cardwrap">
+    <div class="cardhero">
+      <div class="chero-flag">${c.flag}</div>
+      <div class="chero-name">${p.name}</div>
+      <div class="chero-sub">${honorific(p.gender)}. ${p.name.split(" ").slice(-1)[0]} · ${orig?orig.name:""} · ${c.name}</div>
+      <div class="gender">${gsel('m')}${gsel('f')}${gsel('x')}<button class="gbtn reroll" onclick="rerollName()">⟳ New name</button></div>
+    </div>
+    <div class="csect" style="text-align:center">
+      <div class="clabel" style="text-align:left">${de?"DAS SIND SIE":"THIS IS YOU"}</div>
+      ${playerFigureHtml(190,false)}
+      <div style="font-size:17px;font-weight:900;letter-spacing:.2px;margin:6px 0 2px">${deT(post)}</div>
+      <div class="muted" style="font-weight:700;font-size:13px;line-height:1.5">${p.age} · ${p.year}</div>
+    </div>
+    <div class="csect"><div class="clabel">THE WORD ON THE STREET</div><div class="cpress">“${pressIntro(p,orig,c,SY)}”</div></div>
+    <div class="csect"><div class="clabel">${c.name.toUpperCase()}. THE SITUATION</div><div class="csit">${countrySituation(c,SY)}</div></div>
+    <div class="csect"><div class="clabel">WHO YOU ARE</div>
+      <div class="wholine">${orig?orig.icon:""} <b>${orig?orig.name:""}</b></div>
+      <div class="wholine">${circ?circ.icon:""} <b>${circ?circ.name:""}</b></div>
+      <div class="wholine">💰 Net worth <b>${money(p.netWorth)}</b></div>
+      ${traitBadge}
+    </div>
     <button class="btn btn-cta" style="width:100%" onclick="beginRun()">${de?"BEGINNEN":"BEGIN"}</button>
+    <button class="btn btn-ghost" onclick="backToOffers()">← ${de?"Zurück zu den Angeboten":"Back to the offers"}</button>
   </div>`;
   }
   return `<div class="card">
