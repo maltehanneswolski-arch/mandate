@@ -43,7 +43,7 @@
   .backbtn{background:#fff;border:none;border-radius:12px;padding:9px 15px;font-weight:800;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.12)}
   .idbar{background:#fff;border-radius:14px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:13px;box-shadow:0 3px 10px rgba(0,0,0,.12);gap:8px}
   .idbar .office{color:#fff;border-radius:8px;padding:3px 8px;font-size:11px}
-  .inforow{background:rgba(255,255,255,.16);color:#eafff2;border-radius:10px;margin-top:7px;padding:7px 12px;font-size:12px;font-weight:800;display:flex;justify-content:space-between;letter-spacing:.3px;gap:8px}
+  .inforow{background:rgba(0,0,0,.055);color:var(--accent);border-radius:10px;margin-top:7px;padding:7px 12px;font-size:12px;font-weight:800;display:flex;justify-content:space-between;letter-spacing:.3px;gap:8px}
   .ladbar{margin-top:7px}
   .ladtrack{height:11px;border-radius:7px;background:rgba(255,255,255,.16);overflow:hidden;position:relative}
   .ladfill{display:block;height:100%;border-radius:7px}
@@ -65,7 +65,12 @@
   .fill{display:block;height:100%;border-radius:6px}
   .fill.mom{background:linear-gradient(90deg,#6a4aa0,#8a6fc0,#b9a3e0)}
   .fill.mor{background:linear-gradient(90deg,#e46b6b,#8ab6e8)}
-  .figwrap{display:flex;flex-direction:column;align-items:center;gap:4px;margin:2px 0 10px}
+  .drawerbody{display:flex;gap:10px;align-items:flex-start}
+.drawercol{flex:1 1 auto;min-width:0}
+.drawerfig{flex:0 0 auto;padding-top:2px}
+@media (max-width:420px){.drawerfig{display:none}}
+.figwrap{display:flex;flex-direction:column;align-items:center;gap:3px;margin:0}
+.drawerfig .figcap{max-width:104px;line-height:1.25}
 .figbox svg{width:100%;height:100%;display:block}
 .figcap{font-size:11px;font-weight:800;letter-spacing:.4px;opacity:.62;text-align:center}
 .drawer{background:#fff;border-radius:16px;padding:15px 17px;margin-top:9px;box-shadow:0 4px 14px rgba(0,0,0,.14)}
@@ -17546,7 +17551,11 @@ function drawer(){
   const tr=p.traits.length?p.traits.map(t=>{const isOrigin=t===ORIGIN_TRAIT[G.setup.origin];return `<span class="tchip" title="${traitTip(t)}" style="cursor:help;${traitChipStyle(t,isOrigin)}">${isOrigin?"★ ":""}${traitName(t)}</span>`;}).join(""):`<span class="muted">No trait unlocked yet</span>`;
   const flags=Object.keys(p.flags).filter(f=>FLAG_LABELS[f]);
   const fl=flags.length?`<div class="dsub">Reputation</div>${flags.map(f=>`<span class="flagchip ${flagCls(f)}">${FLAG_LABELS[f]}${((G.player.flagCounts||{})[f]||1)>1?` \u00d7${(G.player.flagCounts||{})[f]}`:""}</span>`).join("")}`:"";
-  return `<div class="drawer">${infoRow}${playerFigureHtml(132,true)}${lines}${risk}<div class="dsub">Traits</div><div class="traits">${tr}</div>${fl}</div>`;
+  const fig=playerFigureHtml(150,true);
+  const body=fig
+    ?`<div class="drawerbody"><div class="drawercol">${lines}${risk}</div><div class="drawerfig">${fig}</div></div>`
+    :`${lines}${risk}`;
+  return `<div class="drawer">${infoRow}${body}<div class="dsub">Traits</div><div class="traits">${tr}</div>${fl}</div>`;
 }
 const FLAG_NEG=new Set(["corrupt_deal","under_investigation","jailed_rivals","crushed_protest","at_war","broke_promise","rigged_vote","betrayed_mentor","sibling_scandal","ordered_hit","cult_of_personality","surveillance_state","offshore_wealth","affair_exposed","gerrymandered","press_curbed","rewrote_constitution","emergency_powers","changed_party","launched_border_war","war_quagmire","war_escalator","war_record_buried","frontier_cuba_strike","frontier_world_war","frontier_berserker","world_ended","dt_birther"]);
 const FLAG_POS=new Set(["war_hero","peace_broker","foreign_ally","green_champion","assassination_survivor","alliance_member","legacy_project","democratized"]);
