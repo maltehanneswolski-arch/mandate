@@ -16862,8 +16862,20 @@ function renderShare(){
   const setupLine=`<div class="muted" style="font-weight:700;font-size:12.5px;margin-top:3px">${orig?(orig.icon?orig.icon+" ":"")+deT(orig.name):""}${circ?" · "+(circ.icon?circ.icon+" ":"")+deT(circ.name):""}</div>`;
   const tk=ORIGIN_TRAIT[G.setup.origin],tr0=tk&&TRAITS[tk];
   const traitBadge=tr0?`<div style="margin-top:9px"><span class="tchip" style="${traitChipStyle(tk,true)}">★ ${deT(tr0.name)}</span><div class="muted" style="font-size:11.5px;font-weight:700;margin-top:4px;line-height:1.5">${deT(tr0.desc||"")}</div></div>`:"";
+  /* your own run has just come off the character page, so this says only what that page could not:
+   the post you took. A guest arriving by link has seen nothing yet and gets the whole card. */
+  if(!G.sharedRun){
+    return `<div class="card">
+    <div class="dsub" style="margin-top:0">${de?"DAS SIND SIE":"THIS IS YOU"}</div>
+    ${playerFigureHtml(190,false)}
+    <div style="font-size:17px;font-weight:900;letter-spacing:.2px;margin:6px 0 2px">${deT(post)}</div>
+    <div class="muted" style="font-weight:700;font-size:13px;line-height:1.5">${c.flag} ${p.age} · ${p.year}</div>
+    <div style="height:14px"></div>
+    <button class="btn btn-cta" style="width:100%" onclick="beginRun()">${de?"BEGINNEN":"BEGIN"}</button>
+  </div>`;
+  }
   return `<div class="card">
-    <div class="dsub" style="margin-top:0">${G.sharedRun?(de?"EIN GETEILTER LAUF":"A SHARED RUN"):(de?"DAS SIND SIE":"THIS IS YOU")}</div>
+    <div class="dsub" style="margin-top:0">${de?"EIN GETEILTER LAUF":"A SHARED RUN"}</div>
     ${playerFigureHtml(190,false)}
     <div style="font-size:19px;font-weight:900;letter-spacing:.2px;margin:2px 0">${p.name}</div>
     <div class="muted" style="font-weight:700;font-size:13px;line-height:1.5">${c.flag} ${c.name} · ${deT(post)} · ${p.age} · ${p.year}</div>
