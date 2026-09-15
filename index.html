@@ -65,7 +65,10 @@
   .fill{display:block;height:100%;border-radius:6px}
   .fill.mom{background:linear-gradient(90deg,#6a4aa0,#8a6fc0,#b9a3e0)}
   .fill.mor{background:linear-gradient(90deg,#e46b6b,#8ab6e8)}
-  .drawer{background:#fff;border-radius:16px;padding:15px 17px;margin-top:9px;box-shadow:0 4px 14px rgba(0,0,0,.14)}
+  .figwrap{display:flex;flex-direction:column;align-items:center;gap:4px;margin:2px 0 10px}
+.figbox svg{width:100%;height:100%;display:block}
+.figcap{font-size:11px;font-weight:800;letter-spacing:.4px;opacity:.62;text-align:center}
+.drawer{background:#fff;border-radius:16px;padding:15px 17px;margin-top:9px;box-shadow:0 4px 14px rgba(0,0,0,.14)}
   .statline{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:13px;font-weight:700}
   .statline .sn{width:112px;color:#41504a}
   .statline .st{position:relative;flex:1;height:9px;border-radius:6px;background:#eaeee9;overflow:hidden}
@@ -16961,6 +16964,578 @@ function hud(){
   </div>${G.drawer?drawer():""}`;
 }
 function toggleDrawer(){G.drawer=!G.drawer;render();}
+/* ================= CASTING FIGURE =================
+   Faceless figure for the current character, from figures/MANDATE-casting-spec.md. The whole
+   engine lives inside this closure: it declares COUNTRIES, rng, mix, shade, lum, resolve and
+   draw, and the game already owns every one of those names. */
+const FIGURE=(function(){
+/* ================================================================ data */
+const O = (name,suit,shirt,tie) => ({name,suit,shirt,tie});
+const COUNTRIES = [
+ {id:'republic', shoes:['oxfords','brogues','loafers','boots','monk straps'], name:'Old Republic', sys:'Parliamentary', icon:'🏛️', hex:'#2e6f6a', era:'modern', metal:'#a8894a',
+  outfits:[O('charcoal wool','#474b52','#e9e6dd','#7a2e35'), O('brown tweed','#5a4a3a','#efe9dc','#3b5f4a'), O('navy serge','#2f3a52','#dfe6ee','#8a6a2a'), O('bottle green','#3b4a3f','#ece7d8','#7a2e35'),
+           O('mid grey','#6a6d72','#f1efe8','#2f3a52'), O('black','#22232a','#e9e6dd','#5a1f28'), O('burgundy','#5a1f28','#efe9dc','#2f3a52'), O('camel','#9a7d5a','#f4f0e6','#3b4a3f')],
+  ladder:['Party Member','Local Councillor','MP (Backbench)','Junior Minister','Cabinet Minister','World Leader'],
+  ages:[25,30,35,45,50,60], wear:[0,1,2,3,4,5],
+  palette:'Slate teal, wet stone, oxblood leather, tarnished brass.', wardrobe:'Sober wool, layered for weather, a scarf. A coat re-lined rather than replaced.'},
+ {id:'marran', shoes:['oxfords','loafers','brogues','trainers','boots'], name:'Federated States of Marran', sys:'Presidential', icon:'🦅', hex:'#2b5a8c', era:'modern', metal:'#c9a24a',
+  outfits:[O('campaign navy','#243f6b','#ffffff','#c0392b'), O('charcoal','#33363d','#ffffff','#2b5a8c'), O('black','#1c1c22','#ffffff','#c0392b'), O('mid blue','#2b5a8c','#ffffff','#7a1f1f'),
+           O('steel grey','#6b6e76','#ffffff','#243f6b'), O('dark brown','#4a3a2e','#ffffff','#c0392b'), O('midnight','#1a1f33','#ffffff','#c9a24a'), O('light grey','#9a9ca3','#ffffff','#2b5a8c')],
+  ladder:['Volunteer','City Councillor','State Legislator','Governor','World Leader'],
+  ages:[25,30,35,50,60], wear:[0,1,2,4,5],
+  palette:'Campaign navy against bleached white and a hard red.', wardrobe:'Sharp and bought for television. Lapel pin, jacket back on for the podium.'},
+ {id:'directorate', shoes:['oxfords','brogues','loafers','boots','monk straps'], name:'The Directorate', sys:'One-party', icon:'⭐', hex:'#8c2b2b', era:'modern', metal:'#8c2b2b',
+  outfits:[O('near-black','#26262b','#f1f1ee','#3a3a40'), O('dark grey','#33343a','#f1f1ee','#26262b'), O('dark olive','#2c312a','#f1f1ee','#3a3a40'), O('dark navy','#24283a','#f1f1ee','#26262b'),
+           O('black','#1a1a1e','#f1f1ee','#26262b'), O('charcoal','#3a3b42','#f1f1ee','#1a1a1e'), O('dark brown','#332a24','#f1f1ee','#26262b'), O('dark plum','#2e2434','#f1f1ee','#26262b')],
+  ladder:['Party Cadre','District Official','Regional Governor','Central Committee','Politburo Member','World Leader'],
+  ages:[25,30,35,45,50,60], wear:[0,1,2,3,4,5],
+  palette:'Congress red and olive drab over beige folders; a fluorescent green-white.', wardrobe:'Identical dark suits, identical haircuts, one small lapel badge for rank.'},
+ {id:'zahran', shoes:['oxfords','monk straps','loafers','brogues','boots'], name:'Sultanate of Zahran', sys:'Dictatorship', icon:'🛢️', hex:'#7a1f1f', era:'modern', metal:'#d4af37',
+  outfits:[O('black','#15151a','#f6f1e6','#7a1f1f'), O('midnight navy','#1a1f33','#f6f1e6','#c9a24a'), O('oxblood','#3a1418','#f6f1e6','#15151a'), O('dark grey','#2a2a2e','#f6f1e6','#7a1f1f'),
+           O('ivory','#e4dcc8','#1a1a1e','#7a1f1f'), O('navy','#243f6b','#f6f1e6','#d4af37'), O('charcoal','#3a3a40','#f6f1e6','#7a1f1f'), O('plum','#3a2a4a','#f6f1e6','#d4af37')],
+  ladder:['Loyalist','Enforcer','Provincial Boss','Minister','Inner Circle','World Leader'],
+  ages:[25,30,35,45,50,60], wear:[0,1,2,3,4,5],
+  palette:'Deep oxblood and gold on desert ochre, black glass, polished marble.', wardrobe:'Immaculate and expensive. Gold at the wrist, sunglasses indoors, shoes that never touched a street.'},
+ {id:'aldmere', shoes:['boots','poulaines','riding boots','turnshoes','sandals'], name:'Kingdom of Aldmere', sys:'Monarchy · 1350', icon:'👑', hex:'#6a4aa0', era:'medieval', metal:'#c9a24a',
+  outfits:[O('royal purple','#6a4aa0','#d8c9a8','#c9a24a'), O('deep red','#7a1f1f','#d8c9a8','#c9a24a'), O('forest green','#2f5a3a','#d8c9a8','#c9a24a'), O('walnut brown','#5a3a2a','#d8c9a8','#c9a24a'),
+           O('woad blue','#2f4a6b','#d8c9a8','#c9a24a'), O('black','#22201f','#d8c9a8','#c9a24a'), O('ochre','#a8783a','#d8c9a8','#c9a24a'), O('undyed grey','#7a746a','#d8c9a8','#c9a24a')],
+  ladder:['Courtier','Noble','Royal Advisor','Minister of the Crown','Lord Chancellor','World Leader'],
+  ages:[25,30,35,45,50,60], wear:[0,1,2,3,4,5],
+  palette:'Royal purple and candle-gold over undyed wool, iron and parchment.', wardrobe:'Layered robes, fur trim strictly by rank, a chain of office or a seal on a cord. Boots made for mud.'},
+];
+
+const UNIFORMS   = ['olive drab','dark green','grey-blue','khaki','field grey','dark navy','sand','black'].map((n,i)=>({name:n, suit:['#3a3f2c','#2f3b2c','#3b4a5a','#6b6244','#4a4f4a','#24283a','#8a7a5a','#22232a'][i]}));
+const FIRESHIRTS = ['cream','off-white','pale blue','faded red','grey','mustard','denim','olive'].map((n,i)=>({name:n, shirt:['#dfd8c8','#e6e4dc','#cfdbe6','#c97a6a','#a9aaa6','#c9a24a','#5a6f8a','#7a7f5a'][i]}));
+const SCHOLARJ   = ['tweed brown','soft grey','olive cord','rust','navy','oatmeal','charcoal','moss'].map((n,i)=>({name:n, suit:['#6b5a45','#5a5a5a','#5c6446','#7a4a3a','#3a4a6a','#a89a7c','#3a3a40','#4a5a3a'][i]}));
+
+const BACKGROUNDS = [
+ {id:'scion', name:'Dynasty Scion', icon:'👑', trait:'Untouchable Dynasty', stats:'party +12 · appr +6 · cha +4 · integrity −2', money:200,
+  wardrobe:'Inherited quality, a decade out of date. Good coat, old cut.', prop:'A signet ring, worn. Carrying nothing.',
+  ranks:['Old coat, ring.','Old coat, family pin.','Coat, ring, pin, watch.','Coat, pocket square, watch.','Coat, gold watch, chain, cufflinks.','Sash of office and star over the old coat.']},
+ {id:'firebrand', name:'Grassroots Firebrand', icon:'📣', trait:'One of the People', stats:'loyalty +12 · rhetoric +8 · cha +6 · approval −4', money:20,
+  wardrobe:'Cheap and deliberate. Sleeves up, a badge, shoes worn through.', prop:'A megaphone, held.',
+  ranks:['Shirt, sleeves up, badge.','Shirt, badge, armband.','Open jacket over the shirt.','Jacket, badge on the lapel, watch.','A suit at last, still no tie.','Suit, sash of office, badge kept.']},
+ {id:'magnate', name:'Self-Made Magnate', icon:'💼', trait:'Business Boss', stats:'cha +6 · nerve +5 · party +2 · integrity −6', money:520,
+  wardrobe:'Expensive and one degree too new. Open collar, no tie.', prop:'A car key, held.',
+  ranks:['New suit, open collar.','Suit, steel watch.','Suit, gold watch.','Suit, gold watch, pocket square.','Suit, gold watch, gold chain, cufflinks.','Sash of office over all the gold.']},
+ {id:'scholar', name:'Scholar & Reformer', icon:'⚖️', trait:'Genius', stats:'integrity +12 · rhetoric +6 · nerve +4 · charisma −5', money:80,
+  wardrobe:'Soft, functional, the same jacket in every frame. Glasses pushed up.', prop:'A book with things sticking out of it, held.',
+  ranks:['Cardigan, pen.','Cardigan, pen, pin.','Jacket, elbow patches, pen.','Jacket, pen, watch.','Jacket and tie, pocket square.','Sash of office; the same jacket underneath.']},
+ {id:'hardliner', name:'Military Hardliner', icon:'🎖️', trait:'Iron Fist', stats:'nerve +10 · health +6 · party +6 · cha −4 · int −2', money:60,
+  wardrobe:'Uniform where allowed, uniform-shaped where not. Hard collar, everything polished.', prop:'Nothing. Ribbons and rank do the talking.',
+  ranks:['Plain service shirt, belt.','Service shirt, one ribbon.','Tunic, two ribbons, hard collar.','Tunic, epaulettes, three ribbons.','Full dress: four ribbons, gold buckle, gold buttons.','Full dress with sash and star.']},
+];
+
+const CIRCLES = [
+ {id:'family', name:'Loyal Family', icon:'👨‍👩‍👧', stats:'morale +15 · integrity +3', who:'A partner or child behind the shoulder, off-duty.'},
+ {id:'shark', name:'Shark Strategist', icon:'🦈', stats:'cha +4 · party +4 · integrity −4', who:'One person half a step behind, better dressed, steering.'},
+ {id:'apparatus', name:'Party Apparatus', icon:'🏛️', stats:'party +10 · loyalty −2', who:'A wall of interchangeable grey figures.'},
+ {id:'movement', name:'Grassroots Movement', icon:'📣', stats:'loyalty +10 · approval +3', who:'An unruly crowd in clashing colours.'},
+ {id:'donor', name:'Donor-Patron', icon:'💰', stats:'nerve −2 · money +600', who:'A hand, a cuff and a glass at the edge of the frame.'},
+];
+
+const POSTS = [
+ {label:'Young Prodigy', text:'No lines yet. Clothes that do not fit the building. Visibly the youngest present.'},
+ {label:'Rising Star', text:'The first good jacket, bought specifically for this.'},
+ {label:'Contender', text:'Comfortable and photogenic. Grey may start at the temple.'},
+ {label:'Established Operator', text:'Heavier, better tailored. Reading glasses live in the top pocket.'},
+ {label:'Seasoned Veteran', text:'Expensive and worn in. Has said no a great many times.'},
+ {label:'World Leader', text:'Top of the ladder. Sixty, or looks it. A sash of office and everything gold that can be gold.'},
+];
+
+const GENDERS = [{id:'m',name:'♂'},{id:'f',name:'♀'},{id:'x',name:'⚧'}];
+
+const SKINS = [
+ {name:'porcelain', hex:'#f8e3d0'}, {name:'fair', hex:'#f2c9a6'}, {name:'light tan', hex:'#e8b48c'}, {name:'olive', hex:'#d9a074'},
+ {name:'tan', hex:'#c68a5a'}, {name:'brown', hex:'#a86a42'}, {name:'dark brown', hex:'#7f4b2a'}, {name:'deep', hex:'#5a3520'}];
+const HAIRCOLS = [
+ {name:'black', hex:'#1e1a1a'}, {name:'dark brown', hex:'#3b2a20'}, {name:'brown', hex:'#5c3d2e'}, {name:'chestnut', hex:'#7a4a2a'},
+ {name:'auburn', hex:'#a0522d'}, {name:'ginger', hex:'#c8702a'}, {name:'blond', hex:'#d6b25e'}, {name:'ash blond', hex:'#e3d3a3'}];
+const BUILDS = [
+ {name:'slight',  sh:112, hip:104, torso:120},
+ {name:'lean',    sh:126, hip:116, torso:118},
+ {name:'average', sh:142, hip:134, torso:122},
+ {name:'sturdy',  sh:160, hip:150, torso:126},
+ {name:'heavy',   sh:180, hip:196, torso:134}];
+
+/* hair: 10 per pool; ⚧ draws from the neutral pool */
+const HAIR_M = ['side part','slick','cropped','buzz','tousled','curly','quiff','afro','undercut','pompadour'];
+const HAIR_F = ['bob','lob','long','waves','bun','updo','ponytail','braid','pixie','long curls'];
+const HAIR_X = ['cropped','buzz','tousled','curly','pixie','undercut','bob','bun','afro','side part'];
+const STYLE = {
+ 'side part':{cap:'cap',part:true}, slick:{cap:'cap'}, cropped:{cap:'short'}, buzz:{cap:'buzz'}, tousled:{cap:'spiky'}, curly:{cap:'curly'},
+ quiff:{cap:'cap',swoop:1}, pompadour:{cap:'cap',swoop:2}, afro:{cap:'curly',back:'afro'}, undercut:{cap:'undercut'},
+ bob:{cap:'cap',back:'jaw',fringe:true}, lob:{cap:'cap',back:'shoulder',fringe:true}, long:{cap:'cap',back:'long',fringe:true}, waves:{cap:'cap',back:'longwavy',fringe:true},
+ bun:{cap:'tight',bun:'small'}, updo:{cap:'tight',bun:'big'}, ponytail:{cap:'tight',tail:true}, braid:{cap:'tight',braid:true}, pixie:{cap:'pixie'}, 'long curls':{cap:'curly',back:'longwavy'}
+};
+const SHORT_CAPS = ['cap','short','buzz','spiky','curly','undercut','pixie','tight'];
+const GREY = ['none','temple streak','salt and pepper','mostly grey','white'];
+const BALD = ['full head','receding','bald crown','bald'];
+
+/* ================================================================ helpers */
+const h2r = h => [1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const r2h = r => '#'+r.map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
+const mix = (a,b,t) => r2h(h2r(a).map((v,i)=>v+(h2r(b)[i]-v)*t));
+const shade = (a,t) => mix(a,'#000000',t);
+const lum = h => { const [r,g,b] = h2r(h).map(v=>{v/=255; return v<=.03928? v/12.92 : Math.pow((v+.055)/1.055,2.4);}); return .2126*r+.7152*g+.0722*b; };
+const contrastOK = (a,b) => Math.abs(lum(a)-lum(b)) >= 0.08;
+function rng(seed){ let a = seed>>>0; return ()=>{ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+/* ================================================================ state */
+const state = { country:'republic', background:'magnate', circle:'family', post:2, gender:'m', seed:20260914 };
+const byId = (arr,id) => arr.find(o=>o.id===id);
+
+const pGrey = age => age<=25?0.05 : age<=30?0.15 : age<=35?0.35 : age<=45?0.70 : age<=50?0.85 : 0.95;
+const pBald = age => age<=25?0.05 : age<=30?0.12 : age<=35?0.20 : age<=45?0.38 : age<=50?0.50 : 0.56;
+
+function resolve(s){
+  const c = byId(COUNTRIES,s.country), b = byId(BACKGROUNDS,s.background), ci = byId(CIRCLES,s.circle);
+  const rung = Math.min(s.post, c.ladder.length-1);
+  const age = c.ages[rung], wear = c.wear[rung];
+  const medieval = c.era==='medieval';
+  const r = rng(s.seed);
+  const skin = SKINS[Math.floor(r()*8)];
+  /* hair colour: roll, then step to the next colour until it contrasts with the skin */
+  let hi = Math.floor(r()*8), hairc = HAIRCOLS[hi];
+  for(let k=0;k<8 && !contrastOK(hairc.hex, skin.hex);k++){ hi=(hi+1)%8; hairc=HAIRCOLS[hi]; }
+  const styleRoll = Math.floor(r()*10), outfit = Math.floor(r()*8), build = BUILDS[Math.floor(r()*5)];
+  const uGrey = r(), uGreyStage = r(), uBald = r(), uBaldStage = r();
+  const uGlass = r(), uGlassType = r(), uNeck = r(), uEar = r(), uShades = r(), uShoe = r();
+  let style = s.gender==='m' ? HAIR_M[styleRoll] : s.gender==='f' ? HAIR_F[styleRoll] : HAIR_X[styleRoll];
+  if(b.id==='hardliner') style = s.gender==='f' ? 'bun' : 'cropped';
+  if(c.id==='directorate' && !medieval) style = s.gender==='f' ? 'bob' : 'side part';
+  let grey = 0;
+  if(uGrey < pGrey(age)) grey = age<35 ? 1 : age<45 ? (uGreyStage<.5?1:2) : age<50 ? (uGreyStage<.5?2:3) : (uGreyStage<.5?3:4);
+  let bald = 0;
+  const baldK = s.gender==='m' ? 1 : s.gender==='x' ? 0.5 : 0;
+  if(uBald < pBald(age)*baldK) bald = age<=30 ? 1 : age<=35 ? (uBaldStage<.6?1:2) : (uBaldStage<.3?3:(uBaldStage<.7?2:1));
+  if(bald>0 && !SHORT_CAPS.includes(STYLE[style].cap) || (bald>0 && STYLE[style].back)) style = 'cropped';
+  /* accessories: rolled, then gated by rank and setting */
+  const acc = [];
+  const GL = ['round glasses','square glasses','rectangular glasses','browline glasses','rimless glasses'];
+  const SG = ['aviators','wayfarers','round shades','oversized shades','wraparounds'];
+  const sunglasses = !medieval && (c.id==='zahran' || (uShades<.06 && (b.id==='magnate'||b.id==='scion'))) ? SG[Math.floor(uGlassType*5)] : null;
+  const glasses = !sunglasses && b.id!=='scholar' && uGlass<.28 ? GL[Math.floor(uGlassType*5)] : null;
+  const shoe = (b.id==='firebrand' && wear<2 && !medieval) ? 'trainers' : c.shoes[Math.floor(uShoe*5)];
+  if(sunglasses) acc.push(sunglasses); if(glasses) acc.push(glasses);
+  const necklace = s.gender!=='m' && uNeck<.35 && !['hardliner'].includes(b.id) ? (uNeck<.18?'pearls':'thin chain') : null;
+  const goldChain = wear>=4 && (b.id==='magnate' || b.id==='scion') && !medieval;
+  if(goldChain) acc.push('gold chain'); else if(necklace) acc.push(necklace);
+  const earrings = s.gender!=='m' && uEar<.4;
+  if(earrings) acc.push('earrings');
+  let watch = null;
+  if(!medieval){
+    if(b.id==='magnate') watch = wear>=2 ? 'gold watch' : wear>=1 ? 'steel watch' : null;
+    else if(b.id==='scion') watch = wear>=4 ? 'gold watch' : wear>=2 ? 'steel watch' : null;
+    else if(b.id!=='hardliner') watch = wear>=3 ? 'steel watch' : null;
+  }
+  if(watch) acc.push(watch);
+  const pocketSquare = !medieval && wear>=3 && ['scion','magnate','scholar'].includes(b.id);
+  if(pocketSquare) acc.push('pocket square');
+  const cufflinks = !medieval && wear>=4 && ['scion','magnate'].includes(b.id);
+  if(cufflinks) acc.push('cufflinks');
+  const pin = !medieval && b.id!=='hardliner' && b.id!=='firebrand' && (c.id==='marran' || wear>=1);
+  if(pin) acc.push(c.id==='marran' ? 'flag pin' : c.id==='directorate' ? 'rank badge' : 'party pin');
+  return { c,b,ci,rung,age,wear,postName:c.ladder[rung], post:POSTS[wear], g:s.gender, medieval,
+           skin, hairc, style, outfit, grey, bald, build, acc, shoe, sunglasses, glasses, necklace: goldChain?'gold chain':necklace, earrings, watch, pocketSquare, cufflinks, pin };
+}
+
+function outfitName(R){
+  const base = R.c.outfits[R.outfit];
+  if(R.b.id==='scholar' && !R.medieval) return SCHOLARJ[R.outfit].name + (R.wear<2?' cardigan':' jacket');
+  if(R.b.id==='hardliner') return R.medieval ? 'iron and leather' : UNIFORMS[R.outfit].name + (R.wear<2?' service shirt':' tunic');
+  if(R.b.id==='firebrand') return R.medieval ? 'undyed wool' : FIRESHIRTS[R.outfit].name + ' shirt' + (R.wear>=2 ? ', ' + base.name + (R.wear>=4?' suit':' jacket') : ', sleeves up');
+  return base.name;
+}
+
+/* ================================================================ drawing */
+function draw(s){
+  const R = resolve(s);
+  const {c,b,wear,medieval,style,grey,bald} = R;
+  const SKIN = R.skin.hex;
+  const W=300,H=460;
+  const out = [];
+  const add = x => out.push(x);
+
+  /* --- clothes */
+  const base = c.outfits[R.outfit];
+  let suit = base.suit, shirt = base.shirt, tie = base.tie, metal = c.metal;
+  if(b.id==='scholar' && !medieval){ suit = SCHOLARJ[R.outfit].suit; }
+  if(b.id==='hardliner'){ suit = medieval ? '#5a5f66' : UNIFORMS[R.outfit].suit; }
+  if(b.id==='firebrand'){ shirt = medieval ? '#cfc3a6' : FIRESHIRTS[R.outfit].shirt; if(medieval) suit='#cfc3a6'; }
+  if(b.id==='magnate'){ suit = shade(base.suit,.15); }
+  if(b.id==='scion' && !medieval){ suit = mix(base.suit,'#5a4a3a',.25); }
+  const darkSuit = lum(suit) < 0.2;
+
+  /* --- hair colour with greying, kept in contrast with the skin */
+  const greyT = [0,0,.4,.75,1][grey];
+  let hairCol = grey>=2 ? mix(R.hairc.hex,'#d8d8d8',greyT) : R.hairc.hex;
+  if(grey>=2 && !contrastOK(hairCol, SKIN)) hairCol = mix(R.hairc.hex,'#8f8f8f',greyT);
+  const streakCol = contrastOK('#d0d0d0', SKIN) ? '#d0d0d0' : '#8f8f8f';
+
+  /* --- body structure */
+  const ageK = wear>=5 ? 1.14 : wear>=4 ? 1.10 : wear>=3 ? 1.06 : wear===0 ? 0.97 : 1;
+  const sh = R.build.sh, hip = R.build.hip*ageK, torsoH = R.build.torso;
+  const shoulderY = 185, hipY = shoulderY + torsoH, feetY = 412;
+  const cr = Math.min(22, sh*0.16);
+  const L = 150 - sh/2, Rr = 150 + sh/2, HL = 150 - hip/2, HR = 150 + hip/2;
+  const midY = shoulderY + torsoH*0.5;
+  const torsoPath = `M${L+cr} ${shoulderY} h${sh-2*cr} a${cr} ${cr} 0 0 1 ${cr} ${cr} C${Rr} ${midY} ${HR} ${midY} ${HR} ${hipY-10} a10 10 0 0 1 -10 10 h-${hip-20} a10 10 0 0 1 -10 -10 C${HL} ${midY} ${L} ${midY} ${L} ${shoulderY+cr} a${cr} ${cr} 0 0 1 ${cr} -${cr} z`;
+
+  const legW = Math.max(30, Math.min(58, hip*0.34));
+  const legGap = 12;
+  const lcx = 150 - legGap/2 - legW/2, rcx = 150 + legGap/2 + legW/2;
+  const shoeLen = legW + 28;
+  const shoeCol = medieval ? '#2a2320' : b.id==='firebrand' ? '#4a3b2e' : '#1a1a1a';
+
+  const sleeveW = Math.max(28, Math.min(40, sh*0.24));
+  const handR = Math.round(sleeveW*0.44);
+  const lp=[L-3, shoulderY+20], rp=[Rr+3, shoulderY+20];
+  const armLen = torsoH - 14 + (wear===0?6:0);
+
+  /* garment mode by background and rank */
+  const fireStage = b.id==='firebrand' ? (wear<2?'shirt': wear<4?'jacket':'suit') : null;
+  const rolled = fireStage==='shirt';
+  const outer = b.id==='firebrand' ? (fireStage==='shirt' ? shirt : suit) : suit;                 // sleeve colour
+  const hardStage = b.id==='hardliner' ? (wear<2?'shirt':'tunic') : null;
+  const sleeveCol = hardStage==='shirt' && !medieval ? mix(suit,'#ffffff',.25) : outer;
+  const handY = lp[1] + armLen + (rolled?10:0);
+
+  function sleeve(px,py){
+    let t = `<g transform="translate(${px} ${py})">`;
+    t += `<rect x="${-sleeveW/2}" y="-14" width="${sleeveW}" height="${armLen}" rx="${sleeveW/2}" fill="${sleeveCol}"/>`;
+    if(rolled){ t += `<rect x="${-handR*0.75}" y="${armLen-24}" width="${handR*1.5}" height="34" rx="${handR*0.75}" fill="${SKIN}"/>`; }
+    if(R.cufflinks && !rolled){ t += `<circle cx="${-sleeveW/2+5}" cy="${armLen-16}" r="2.5" fill="${metal}"/>`; }
+    t += `<circle cx="0" cy="${armLen+(rolled?10:0)}" r="${handR}" fill="${SKIN}"/>`;
+    t += `</g>`;
+    return t;
+  }
+
+  add(`<ellipse cx="150" cy="440" rx="${Math.max(70, hip*0.55)}" ry="8" fill="#000" opacity="0.08"/>`);
+
+  /* ============ hair that hangs behind the head: drawn first so clothes cover it */
+  const def = STYLE[style];
+  /* hair behind the head */
+  if(def.back==='jaw') add(`<path d="M88 100 v56 a8 8 0 0 0 8 8 h108 a8 8 0 0 0 8 -8 v-56 z" fill="${hairCol}"/>`);
+  if(def.back==='shoulder') add(`<path d="M87 100 v72 a9 9 0 0 0 9 9 h108 a9 9 0 0 0 9 -9 v-72 z" fill="${hairCol}"/>`);
+  if(def.back==='long') add(`<path d="M86 100 v${medieval?100:88} a10 10 0 0 0 10 10 h108 a10 10 0 0 0 10 -10 v-${medieval?100:88} z" fill="${hairCol}"/>`);
+  if(def.back==='longwavy') add(`<path d="M86 100 v88 a8 8 0 0 1 -8 8 a8 8 0 0 0 16 0 a8 8 0 0 0 16 0 a8 8 0 0 0 16 0 a8 8 0 0 0 16 0 a8 8 0 0 0 16 0 a8 8 0 0 0 16 0 a8 8 0 0 0 16 0 a8 8 0 0 0 16 0 v-96 z" fill="${hairCol}"/>`);
+  if(def.back==='afro') add(`<circle cx="150" cy="92" r="80" fill="${hairCol}"/>`);
+  if(def.bun==='small') add(`<circle cx="150" cy="42" r="17" fill="${hairCol}"/>`);
+  if(def.bun==='big') add(`<ellipse cx="150" cy="36" rx="28" ry="22" fill="${hairCol}"/>`);
+  if(def.tail) add(`<path d="M196 70 C 226 96, 232 150, 214 208 C 208 214, 198 214, 194 206 C 208 150, 206 110, 190 84 z" fill="${hairCol}"/>`);
+  if(def.braid) add(`<g fill="${hairCol}"><path d="M200 90 C 212 130, 214 180, 208 240 h-16 C 198 180, 196 130, 190 96 z"/>${[110,136,162,188,214].map(y=>`<ellipse cx="201" cy="${y}" rx="11" ry="9" fill="${shade(hairCol,.18)}"/>`).join('')}</g>`);
+
+  /* ============ shoes: five per setting */
+  const li = lcx+legW/2, ri = rcx-legW/2;
+  function shoes(style){
+    const brown = '#5a3a24';
+    const col = style==='loafers' ? brown : style==='turnshoes' ? '#6a4a2e' : style==='trainers' ? '#e8e4dc' : style==='sandals' ? '#6a4a2e' : (R.outfit%3===1 && !medieval && b.id!=='hardliner' ? brown : shoeCol);
+    const hi = mix(col,'#ffffff',.4), lo = shade(col,.35);
+    const base = (inner, dir, len, h) => dir<0
+      ? `M${inner} 408 v${h} a6 6 0 0 1 -6 6 h-${len-18} a12 12 0 0 1 -12 -12 a12 12 0 0 1 12 -12 z`
+      : `M${inner} 408 v${h} a6 6 0 0 0 6 6 h${len-18} a12 12 0 0 0 12 -12 a12 12 0 0 0 -12 -12 z`;
+    const one = (inner, dir, cx) => {
+      const toe = inner + dir*shoeLen, cap = inner + dir*(shoeLen-20), mid = inner + dir*(shoeLen*0.45);
+      const sole = (len) => `M${inner} 428 h${dir*len}`;
+      let t = '';
+      switch(style){
+        case 'boots':
+          t += `<rect x="${cx-legW/2-2}" y="386" width="${legW+4}" height="26" rx="3" fill="${col}"/><path d="${base(inner,dir,shoeLen,18)}" fill="${col}"/><path d="M${cx-legW/2-2} 396 h${legW+4}" stroke="${lo}" stroke-width="1.5"/>`; break;
+        case 'riding boots':
+          t += `<rect x="${cx-legW/2-3}" y="330" width="${legW+6}" height="82" rx="4" fill="${col}"/><path d="${base(inner,dir,shoeLen,18)}" fill="${col}"/><path d="M${cx-legW/2-3} 340 h${legW+6}" stroke="${lo}" stroke-width="2"/>`; break;
+        case 'brogues':
+          t += `<path d="${base(inner,dir,shoeLen,18)}" fill="${col}"/><path d="M${cap} 410 q${dir*6} 10 0 20" fill="none" stroke="${hi}" stroke-width="1.5"/>${[414,420,426].map(y=>`<circle cx="${cap+dir*4}" cy="${y}" r="1.1" fill="${hi}"/>`).join('')}`; break;
+        case 'loafers':
+          t += `<path d="${base(inner,dir,shoeLen,16)}" fill="${col}"/><rect x="${mid-3}" y="409" width="6" height="9" rx="1" fill="${lo}"/>`; break;
+        case 'monk straps':
+          t += `<path d="${base(inner,dir,shoeLen,18)}" fill="${col}"/><path d="M${mid-dir*8} 412 h${dir*16}" stroke="${lo}" stroke-width="3"/><rect x="${mid+dir*6-3}" y="409" width="6" height="7" rx="1" fill="${metal}"/>`; break;
+        case 'trainers':
+          t += `<path d="${base(inner,dir,shoeLen,18)}" fill="${col}"/><path d="M${inner} 426 h${dir*(shoeLen-6)}" stroke="#f7f5ef" stroke-width="5"/><path d="M${mid-dir*6} 410 h${dir*12} M${mid-dir*6} 415 h${dir*12}" stroke="#4a4a4a" stroke-width="1.5"/>${b.id==='firebrand'?`<circle cx="${toe-dir*8}" cy="418" r="3.5" fill="${SKIN}"/>`:''}`; break;
+        case 'poulaines':
+          t += `<path d="${base(inner,dir,shoeLen,16)}" fill="${col}"/><polygon points="${toe-dir*8},410 ${toe-dir*8},432 ${toe+dir*26},432" fill="${col}"/>`; break;
+        case 'turnshoes':
+          t += `<path d="${base(inner,dir,shoeLen-6,14)}" fill="${col}"/><path d="M${inner} 430 h${dir*(shoeLen-12)}" stroke="${lo}" stroke-width="2"/>`; break;
+        case 'sandals':
+          t += `<path d="${base(inner,dir,shoeLen-6,12)}" fill="${SKIN}"/><path d="M${inner} 431 h${dir*(shoeLen-12)}" stroke="${col}" stroke-width="3"/><rect x="${mid-2}" y="408" width="4" height="12" fill="${col}"/><rect x="${cap-dir*2-2}" y="412" width="4" height="10" fill="${col}"/>`; break;
+        default: /* oxfords */
+          t += `<path d="${base(inner,dir,shoeLen,18)}" fill="${col}"/>${(b.id==='magnate' || c.id==='zahran') ? `<path d="${sole(shoeLen-4)}" stroke="${hi}" stroke-width="1.2" opacity="0.8"/>` : ''}`;
+      }
+      return t;
+    };
+    return one(li,-1,lcx) + one(ri,1,rcx);
+  }
+
+  /* ============ legs / robe */
+  if(medieval){
+    const bw = hip + 44;
+    const hem = R.shoe==='riding boots' ? 372 : 404;
+    add(`<rect x="${lcx-legW/2}" y="${hem-20}" width="${legW}" height="${412-hem+20}" fill="#4a3f36"/><rect x="${rcx-legW/2}" y="${hem-20}" width="${legW}" height="${412-hem+20}" fill="#4a3f36"/>`);
+    add(shoes(R.shoe));
+    add(`<path d="M${L+4} ${shoulderY+4} h${sh-8} L${150+bw/2} ${hem} h-${bw} z" fill="${suit}"/>`);
+    add(`<path d="M150 ${shoulderY+4} v${hem-shoulderY-8}" stroke="${shade(suit,.25)}" stroke-width="3" opacity="0.6"/>`);
+    add(`<path d="M${150-bw/2} ${hem-6} h${bw} v6 h-${bw} z" fill="${shade(suit,.3)}"/>`);
+  } else {
+    const pants = b.id==='hardliner' ? shade(suit,.1) : b.id==='firebrand' ? (fireStage==='suit' ? shade(suit,.1) : '#5a5d63') : shade(suit,.1);
+    add(`<rect x="${lcx-legW/2}" y="${hipY-6}" width="${legW}" height="${feetY-hipY+6}" rx="8" fill="${pants}"/>`);
+    add(`<rect x="${rcx-legW/2}" y="${hipY-6}" width="${legW}" height="${feetY-hipY+6}" rx="8" fill="${pants}"/>`);
+    add(shoes(R.shoe));
+  }
+
+  /* ============ torso */
+  const vHalf = b.id==='magnate' ? sh*0.19 : sh*0.2;
+  const vDepth = Math.round(torsoH*0.62);
+  const lapels = () => add(`<path d="M${150-vHalf} ${shoulderY} l${vHalf} ${vDepth} l-${vHalf*0.55} -${vDepth} z" fill="${shade(suit,.25)}"/><path d="M${150+vHalf} ${shoulderY} l-${vHalf} ${vDepth} l${vHalf*0.55} -${vDepth} z" fill="${shade(suit,.25)}"/>`);
+  const buttons = () => add(`<circle cx="150" cy="${shoulderY+vDepth+14}" r="3.5" fill="${wear>=4?metal:shade(suit,.4)}"/><circle cx="150" cy="${shoulderY+vDepth+30}" r="3.5" fill="${wear>=4?metal:shade(suit,.4)}"/>`);
+  const shirtV = (depth=vDepth) => add(`<path d="M${150-vHalf} ${shoulderY} h${vHalf*2} l-${vHalf} ${depth} z" fill="${shirt}"/>`);
+  const tieShape = () => add(`<path d="M150 ${shoulderY+10} l-9 12 l9 60 l9 -60 z" fill="${tie}"/>`);
+  const openCollar = () => add(`<path d="M${150-vHalf*0.3} ${shoulderY} l${vHalf*0.3} 18 l${vHalf*0.3} -18" fill="none" stroke="${shade(shirt,.15)}" stroke-width="2"/>`);
+  const pkX1 = 150 - sh*0.42, pkX2 = 150 - vHalf - 4, pkY = shoulderY + 48;
+  const pocketWelt = () => add(`<path d="M${pkX1} ${pkY} H${pkX2}" stroke="${shade(suit,.3)}" stroke-width="3" stroke-linecap="round"/>`);
+  const pen = () => add(`<rect x="${pkX2-7}" y="${pkY-13}" width="3.5" height="13" rx="1" fill="#7a1f1f"/><rect x="${pkX2-7.6}" y="${pkY-10}" width="1.2" height="8" fill="${metal}"/>`);
+  const pocketSq = () => add(`<path d="M${pkX1+2} ${pkY} L${(pkX1+pkX2)/2} ${pkY-7} L${pkX2-2} ${pkY} z" fill="${lum(suit)>.5?'#2a2a2e':'#f4f1e6'}"/>`);
+  const readingGlasses = () => add(`<path d="M${pkX1+5} ${pkY} v-5 a4 4 0 0 1 8 0 v5 M${pkX1+13} ${pkY-2} H${pkX2-3}" fill="none" stroke="#2a2a2a" stroke-width="1.8" stroke-linecap="round"/>`);
+  const pinDot = () => { const px = 150 - vHalf*0.75 - 5, py = shoulderY + 22;
+    if(c.id==='marran') add(`<circle cx="${px}" cy="${py}" r="5" fill="#fff"/><circle cx="${px}" cy="${py}" r="3" fill="${c.hex}"/><circle cx="${px}" cy="${py}" r="1.3" fill="${tie}"/>`);
+    else if(c.id==='directorate') add(`<rect x="${px-4}" y="${py-3}" width="${6+wear*2}" height="6" fill="${c.hex}"/>`);
+    else add(`<circle cx="${px}" cy="${py}" r="4" fill="${c.hex}"/><circle cx="${px}" cy="${py}" r="1.5" fill="#fff"/>`); };
+
+  if(!medieval){
+    if(b.id==='firebrand'){
+      if(fireStage==='shirt'){
+        add(`<path d="${torsoPath}" fill="${shirt}"/>`);
+        add(`<path d="M${150-vHalf*0.7} ${shoulderY} h${vHalf*1.4} l-${vHalf*0.7} ${vHalf*1.3} z" fill="${SKIN}"/>`);
+        add(`<path d="M150 ${shoulderY+vHalf*1.3} v${torsoH-vHalf*1.3-20}" stroke="${shade(shirt,.2)}" stroke-width="2"/>`);
+        add(`<rect x="${HL}" y="${hipY-10}" width="${hip}" height="10" fill="#4a3b2e"/>`);
+        add(`<circle cx="${150-sh*0.25}" cy="${shoulderY+30}" r="7" fill="${c.hex}"/><circle cx="${150-sh*0.25}" cy="${shoulderY+30}" r="3" fill="#fff"/>`);
+      } else {
+        add(`<path d="${torsoPath}" fill="${suit}"/>`);
+        shirtV(fireStage==='suit' ? Math.round(vDepth*0.9) : vDepth);
+        openCollar();
+        lapels(); buttons();
+        add(`<circle cx="${150-sh*0.3}" cy="${shoulderY+26}" r="6" fill="${c.hex}"/><circle cx="${150-sh*0.3}" cy="${shoulderY+26}" r="2.5" fill="#fff"/>`);
+      }
+    } else if(b.id==='hardliner'){
+      if(hardStage==='shirt'){
+        const sc = mix(suit,'#ffffff',.25);
+        add(`<path d="${torsoPath}" fill="${sc}"/>`);
+        add(`<path d="M${150-vHalf*0.6} ${shoulderY} h${vHalf*1.2} l-${vHalf*0.6} ${vHalf*0.9} z" fill="${SKIN}"/>`);
+        add(`<path d="M${150-vHalf*0.6} ${shoulderY} l${vHalf*0.6} ${vHalf*0.9} l${vHalf*0.6} -${vHalf*0.9}" fill="none" stroke="${shade(sc,.3)}" stroke-width="3"/>`);
+        add(`<path d="M150 ${shoulderY+vHalf*0.9} v${torsoH-vHalf*0.9-16}" stroke="${shade(sc,.3)}" stroke-width="2"/>`);
+        add(`<g>${[0,1,2].map(i=>`<circle cx="150" cy="${shoulderY+vHalf*0.9+16+i*22}" r="3" fill="${shade(sc,.4)}"/>`).join('')}</g>`);
+        add(`<rect x="${150-sh*0.4}" y="${shoulderY+40}" width="22" height="14" rx="1" fill="none" stroke="${shade(sc,.3)}" stroke-width="2"/><rect x="${150+sh*0.4-22}" y="${shoulderY+40}" width="22" height="14" rx="1" fill="none" stroke="${shade(sc,.3)}" stroke-width="2"/>`);
+        add(`<rect x="${HL}" y="${hipY-12}" width="${hip}" height="12" fill="#1e1e1e"/><rect x="142" y="${hipY-13}" width="16" height="14" rx="2" fill="#6a6a6a"/>`);
+        if(wear>=1) add(`<rect x="${150-sh*0.3}" y="${shoulderY+28}" width="9" height="12" fill="#c0392b"/>`);
+      } else {
+        add(`<path d="${torsoPath}" fill="${suit}"/>`);
+        add(`<rect x="${HL}" y="${hipY-12}" width="${hip}" height="12" fill="#1e1e1e"/><rect x="140" y="${hipY-13}" width="20" height="14" rx="2" fill="${wear>=4?metal:'#8a8a8a'}"/>`);
+        if(wear>=3) add(`<rect x="${L+cr}" y="${shoulderY-2}" width="${sh*0.2}" height="9" rx="2" fill="${metal}"/><rect x="${Rr-cr-sh*0.2}" y="${shoulderY-2}" width="${sh*0.2}" height="9" rx="2" fill="${metal}"/>`);
+        add(`<path d="M${150-vHalf} ${shoulderY} h${vHalf*2} v10 h-${vHalf*2} z" fill="${shade(suit,.3)}"/>`);
+        add(`<path d="M150 ${shoulderY+10} v${torsoH-24}" stroke="${shade(suit,.3)}" stroke-width="2"/>`);
+        const nRib = Math.min(4, wear);
+        add(`<g>${['#c0392b','#2b5a8c','#c9a24a','#2e6f6a'].slice(0,nRib).map((col,i)=>`<rect x="${150-sh*0.3+i*11}" y="${shoulderY+28}" width="9" height="12" fill="${col}"/>`).join('')}</g>`);
+        add(`<g>${[0,1,2].map(i=>`<circle cx="150" cy="${shoulderY+44+i*22}" r="3.5" fill="${wear>=4?metal:'#8a8a8a'}"/>`).join('')}</g>`);
+      }
+    } else if(b.id==='scholar'){
+      add(`<path d="${torsoPath}" fill="${suit}"/>`);
+      if(wear<2){ // cardigan: shallow V, no lapels, small buttons
+        shirtV(Math.round(vDepth*0.55));
+        add(`<path d="M${150-vHalf} ${shoulderY} l${vHalf} ${Math.round(vDepth*0.55)} l${vHalf} -${Math.round(vDepth*0.55)}" fill="none" stroke="${shade(suit,.25)}" stroke-width="6"/>`);
+        add(`<g>${[0,1,2,3].map(i=>`<circle cx="150" cy="${shoulderY+Math.round(vDepth*0.55)+10+i*16}" r="2.5" fill="${shade(suit,.4)}"/>`).join('')}</g>`);
+      } else {
+        shirtV();
+        if(wear>=4) tieShape(); else add(`<path d="M150 ${shoulderY+8} l-6 8 l6 44 l6 -44 z" fill="${shade(tie,.1)}" opacity="0.9"/>`);
+        lapels(); buttons();
+        if(wear<4) add(`<rect x="${L+6}" y="${shoulderY+torsoH*0.55}" width="${sleeveW*0.5}" height="18" rx="4" fill="${shade(suit,.2)}"/><rect x="${Rr-6-sleeveW*0.5}" y="${shoulderY+torsoH*0.55}" width="${sleeveW*0.5}" height="18" rx="4" fill="${shade(suit,.2)}"/>`);
+      }
+    } else {
+      add(`<path d="${torsoPath}" fill="${suit}"/>`);
+      if(b.id==='scion') add(`<path d="M${HL-4} ${hipY-2} h${hip+8} v22 a8 8 0 0 1 -8 8 h-${hip-8} a8 8 0 0 1 -8 -8 z" fill="${suit}"/>`);
+      shirtV();
+      if(b.id==='magnate') openCollar(); else tieShape();
+      lapels(); buttons();
+    }
+    const hasPocket = b.id!=='hardliner' && !(b.id==='firebrand' && fireStage==='shirt');
+    if(hasPocket){
+      pocketWelt();
+      if(b.id==='scholar') pen();
+      else if(R.pocketSquare) pocketSq();
+      else if(wear>=3) readingGlasses();
+    }
+    if(R.pin) pinDot();
+    if(c.id==='republic' && b.id!=='hardliner' && !(b.id==='firebrand' && fireStage==='shirt')){
+      const scCol = ['#6b3a3f','#8a6a2a','#3b5f4a','#4a4a55'][R.outfit%4], scCol2 = mix(scCol,'#ffffff',.3);
+      const bw2 = vHalf*2+12, tx = 150 - vHalf*0.55, tw = Math.max(12, Math.round(vHalf*0.6)), tl = Math.round(torsoH*0.5);
+      add(`<rect x="${150-bw2/2}" y="${shoulderY-4}" width="${bw2}" height="16" rx="5" fill="${scCol}"/>`);
+      add(`<rect x="${tx}" y="${shoulderY+8}" width="${tw}" height="${tl}" rx="3" fill="${scCol}"/>`);
+      add(`<g stroke="${scCol2}" stroke-width="2">${[0.35,0.6,0.85].map(k=>`<path d="M${tx} ${shoulderY+8+tl*k} h${tw}"/>`).join('')}</g>`);
+      add(`<g stroke="${scCol}" stroke-width="2">${[0.2,0.5,0.8].map(k=>`<path d="M${tx+tw*k} ${shoulderY+8+tl} v6"/>`).join('')}</g>`);
+    }
+    if(R.necklace==='gold chain') add(`<path d="M${150-vHalf*0.9} ${shoulderY+4} q${vHalf*0.9} ${vHalf*1.6} ${vHalf*1.8} 0" fill="none" stroke="${metal}" stroke-width="3"/>`);
+    if(R.necklace==='thin chain') add(`<path d="M${150-vHalf*0.8} ${shoulderY+2} q${vHalf*0.8} ${vHalf*1.4} ${vHalf*1.6} 0" fill="none" stroke="${metal}" stroke-width="1.5"/><circle cx="150" cy="${shoulderY+vHalf*0.7+2}" r="2.5" fill="${metal}"/>`);
+    if(R.necklace==='pearls') add(`<g fill="#f4efe6" stroke="#bbb" stroke-width="0.6">${[-3,-2,-1,0,1,2,3].map(i=>`<circle cx="${150+i*vHalf*0.26}" cy="${shoulderY+8+ (9-i*i)*1.2}" r="3"/>`).join('')}</g>`);
+  } else {
+    /* medieval rank detail */
+    if(b.id==='scion'){ if(wear>=1) add(`<path d="M${L+4} ${shoulderY+4} h${sh-8} v18 h-${sh-8} z" fill="#efe6d6"/><g fill="#5a4a3a">${[0,1,2,3,4,5].map(i=>`<circle cx="${L+14+i*(sh-28)/5}" cy="${shoulderY+13}" r="2.2"/>`).join('')}</g>`);
+      if(wear>=2) add(`<path d="M150 ${shoulderY+22} v70" stroke="${metal}" stroke-width="2"/><circle cx="150" cy="${shoulderY+96}" r="9" fill="${metal}"/>`); }
+    if(b.id==='magnate'){ if(wear>=2) add(`<path d="M${150-sh*0.22} ${shoulderY+8} q${sh*0.22} 60 ${sh*0.44} 0" fill="none" stroke="${metal}" stroke-width="${wear>=4?6:4}"/>`); add(`<rect x="${HL-6}" y="${hipY-4}" width="${hip+12}" height="10" fill="#2a2320"/><circle cx="150" cy="${hipY+1}" r="6" fill="${wear>=1?metal:'#6a6a6a'}"/>`); }
+    if(b.id==='scholar'){ add(`<path d="M132 ${shoulderY+4} h36 v20 h-36 z" fill="#d8c9a8"/>`); if(wear>=3) add(`<path d="M150 ${shoulderY+24} v40" stroke="${metal}" stroke-width="2"/><circle cx="150" cy="${shoulderY+66}" r="6" fill="${metal}"/>`); }
+    if(b.id==='hardliner'){ add(`<rect x="${HL-6}" y="${hipY-6}" width="${hip+12}" height="12" fill="#2a2320"/>`);
+      if(wear>=1) add(`<rect x="${HR-2}" y="${hipY-16}" width="6" height="32" fill="#8a8f96"/><rect x="${HR-8}" y="${hipY-10}" width="18" height="4" fill="${wear>=3?metal:'#8a8f96'}"/>`);
+      if(wear>=2) add(`<path d="M${L+4} ${shoulderY+4} h${sh-8} v14 h-${sh-8} z" fill="#8a8f96"/>`);
+      if(wear>=4) add(`<path d="M${150-sh*0.22} ${shoulderY+18} q${sh*0.22} 50 ${sh*0.44} 0" fill="none" stroke="${metal}" stroke-width="4"/>`); }
+    if(b.id==='firebrand'){ add(`<rect x="${HL-4}" y="${hipY-6}" width="${hip+8}" height="10" fill="#4a3b2e"/>`); }
+  }
+
+  /* ============ World Leader: sash of office with a star */
+  if(wear>=5){
+    const sashCol = medieval ? metal : c.hex;
+    const x1 = L+cr*0.35, y1 = shoulderY+4, x2 = HR-10, y2 = hipY-4;
+    const dx = x2-x1, dy = y2-y1, len = Math.hypot(dx,dy), nx = -dy/len*8, ny = dx/len*8;   // half-width 8, perpendicular
+    add(`<polygon points="${x1+nx},${y1+ny} ${x2+nx},${y2+ny} ${x2-nx},${y2-ny} ${x1-nx},${y1-ny}" fill="${sashCol}" opacity="0.95"/>`);
+    add(`<line x1="${x1+nx}" y1="${y1+ny}" x2="${x2+nx}" y2="${y2+ny}" stroke="${metal}" stroke-width="1.5"/>`);
+    const t = 0.82, stx = x1+dx*t, sty = y1+dy*t;
+    add(`<polygon points="${[0,1,2,3,4,5,6,7,8,9].map(i=>{const a=-Math.PI/2+i*Math.PI/5, rr=i%2?4:9; return (stx+rr*Math.cos(a)).toFixed(1)+','+(sty+rr*Math.sin(a)).toFixed(1);}).join(' ')}" fill="${metal}"/>`);
+  }
+
+  /* ============ arms: always the same, straight down, hands at the sides */
+  add(sleeve(lp[0],lp[1]));
+  add(sleeve(rp[0],rp[1]));
+
+  /* ============ armband on the right sleeve (firebrand, rung 1) */
+  if(b.id==='firebrand' && wear===1){ add(`<rect x="${rp[0]-sleeveW/2}" y="${rp[1]+22}" width="${sleeveW}" height="10" fill="${medieval?'#7a1f1f':c.hex}"/>`); }
+
+  /* ============ watch (worn) */
+  if(R.watch){ const wc = R.watch==='gold watch' ? metal : '#4a4a50'; add(`<rect x="${rp[0]-sleeveW/2}" y="${handY-handR-16}" width="${sleeveW}" height="7" fill="${wc}"/><circle cx="${rp[0]}" cy="${handY-handR-12.5}" r="4" fill="${wc}" stroke="#f4f1e6" stroke-width="1"/>`); }
+
+  /* ============ the single held item */
+  const lhx = lp[0], rhx = rp[0], hy = handY;
+  if(b.id==='magnate'){
+    if(!medieval) add(`<g transform="translate(${lhx} ${hy+handR-4})"><rect x="-3" y="0" width="6" height="14" rx="1" fill="#333"/><circle cx="0" cy="18" r="6" fill="none" stroke="#333" stroke-width="3"/></g>`);
+    else add(`<g transform="translate(${lhx} ${hy+handR-6})"><rect x="-8" y="0" width="16" height="22" rx="2" fill="#d8c9a8"/><path d="M-8 6 h16" stroke="#7a1f1f" stroke-width="2"/></g>`);
+  }
+  if(b.id==='firebrand'){
+    if(!medieval) add(`<g transform="translate(${rhx} ${hy}) rotate(150)"><rect x="-6" y="-12" width="12" height="24" rx="3" fill="#333"/><path d="M-6 -12 l-16 -34 h44 l-16 34 z" fill="#c0392b"/><path d="M-22 -46 h44 v-4 h-44 z" fill="#333"/></g>`);
+    else add(`<g transform="translate(${rhx+4} ${hy})"><rect x="-3" y="-120" width="6" height="128" fill="#6a5640"/><rect x="-22" y="-146" width="44" height="30" rx="2" fill="#d8c9a8"/><path d="M-14 -136 h28 M-14 -128 h20" stroke="#7a1f1f" stroke-width="2"/></g>`);
+  }
+  if(b.id==='scholar'){
+    /* book: light cover so it reads against any suit, pages edge, slips sticking out */
+    add(`<g transform="translate(${lhx} ${hy-2})"><rect x="-15" y="-24" width="30" height="42" rx="2" fill="#efe6d0" stroke="#8a7a5a" stroke-width="1.5"/><rect x="-15" y="-24" width="5" height="42" fill="#a8783a"/><path d="M-6 -16 h14 M-6 -9 h14 M-6 -2 h10" stroke="#8a7a5a" stroke-width="1.2"/><rect x="-4" y="-30" width="4" height="8" fill="#c0392b"/><rect x="4" y="-31" width="4" height="9" fill="#2e6f6a"/></g>`);
+  }
+  if(b.id==='scion'){
+    add(`<circle cx="${rhx-handR*0.5}" cy="${hy-3}" r="3.5" fill="${metal}"/>`);
+    if(medieval && wear>=1){ add(`<path d="M150 ${shoulderY+4} v40" stroke="#6a5640" stroke-width="2"/><circle cx="150" cy="${shoulderY+46}" r="7" fill="${metal}"/>`); }
+  }
+
+  /* ============ neck & head (neck sits in front of any hair that hangs behind) */
+  const hideEars = !!def.back && def.back!=='afro';
+  add(`<rect x="136" y="160" width="28" height="30" fill="${SKIN}"/>`);
+  add(`<ellipse cx="150" cy="105" rx="62" ry="70" fill="${SKIN}"/>`);
+  if(!hideEars){ add(`<circle cx="90" cy="112" r="10" fill="${SKIN}"/><circle cx="210" cy="112" r="10" fill="${SKIN}"/>`);
+    if(R.earrings) add(`<circle cx="90" cy="120" r="3" fill="${metal}"/><circle cx="210" cy="120" r="3" fill="${metal}"/>`); }
+  add(hairFront(def, hairCol, grey, bald, SKIN, b.id==='scholar' && !R.sunglasses, streakCol));
+  /* face accessories: no eyes, only the frames */
+  const FR = '#2a2a2a';
+  switch(R.sunglasses){
+    case 'aviators': add(`<path d="M94 100 h112" stroke="#111" stroke-width="3"/><path d="M100 98 h44 v6 a22 16 0 0 1 -44 0 z" fill="#111"/><path d="M156 98 h44 v6 a22 16 0 0 1 -44 0 z" fill="#111"/>`); break;
+    case 'wayfarers': add(`<path d="M94 100 h112" stroke="#111" stroke-width="3"/><rect x="100" y="96" width="44" height="20" rx="6" fill="#111"/><rect x="156" y="96" width="44" height="20" rx="6" fill="#111"/>`); break;
+    case 'round shades': add(`<path d="M92 104 h116" stroke="#111" stroke-width="2.5"/><circle cx="126" cy="104" r="16" fill="#111"/><circle cx="174" cy="104" r="16" fill="#111"/>`); break;
+    case 'oversized shades': add(`<path d="M90 100 h120" stroke="#111" stroke-width="3"/><rect x="94" y="92" width="52" height="28" rx="10" fill="#111"/><rect x="154" y="92" width="52" height="28" rx="10" fill="#111"/>`); break;
+    case 'wraparounds': add(`<path d="M92 96 h116 a10 10 0 0 1 0 20 h-116 a10 10 0 0 1 0 -20 z" fill="#111"/><path d="M144 116 l6 -7 l6 7 z" fill="${SKIN}"/>`); break;
+  }
+  switch(R.glasses){
+    case 'round glasses': add(`<g fill="none" stroke="${FR}" stroke-width="2.5"><circle cx="126" cy="104" r="16"/><circle cx="174" cy="104" r="16"/><path d="M142 104 h16 M110 104 h-16 M190 104 h16"/></g>`); break;
+    case 'square glasses': add(`<g fill="none" stroke="${FR}" stroke-width="2.5"><rect x="108" y="92" width="34" height="24" rx="4"/><rect x="158" y="92" width="34" height="24" rx="4"/><path d="M142 104 h16 M108 104 h-14 M192 104 h14"/></g>`); break;
+    case 'rectangular glasses': add(`<g fill="none" stroke="${FR}" stroke-width="2.5"><rect x="106" y="97" width="36" height="15" rx="3"/><rect x="158" y="97" width="36" height="15" rx="3"/><path d="M142 104 h16 M106 104 h-12 M194 104 h12"/></g>`); break;
+    case 'browline glasses': add(`<g fill="none" stroke="${FR}"><path d="M108 99 h34 M158 99 h34" stroke-width="4.5"/><path d="M108 99 a17 15 0 0 0 34 0 M158 99 a17 15 0 0 0 34 0" stroke-width="1.5"/><path d="M142 100 h16 M108 100 h-14 M192 100 h14" stroke-width="2.5"/></g>`); break;
+    case 'rimless glasses': add(`<g fill="none" stroke="#666" stroke-width="1.4"><ellipse cx="126" cy="104" rx="17" ry="12"/><ellipse cx="174" cy="104" rx="17" ry="12"/></g><g fill="none" stroke="${metal}" stroke-width="2"><path d="M143 103 h14 M109 104 h-15 M191 104 h15"/></g>`); break;
+  }
+  if(medieval && b.id==='scion' && wear>=3 && wear<5){ add(`<path d="M92 76 h116" stroke="${metal}" stroke-width="4"/><circle cx="150" cy="70" r="4" fill="${metal}"/>`); }
+  if(medieval && wear>=5){ add(`<path d="M96 70 L100 44 L118 60 L134 36 L150 58 L166 36 L182 60 L200 44 L204 70 Q150 82 96 70 z" fill="${metal}"/><circle cx="150" cy="52" r="4" fill="#7a1f1f"/>`); }
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${out.join('')}</svg>`;
+}
+
+/* hair in front of the head; bald overrides for short caps */
+function hairFront(def, col, grey, bald, skin, glasses, streakCol){
+  /* every cap starts on an ellipse 2px larger than the head, so no skin shows above the hair */
+  const RX=64, RY=72, CX=150, CY=105;
+  const xAt = (y,rx=RX,ry=RY) => rx*Math.sqrt(Math.max(0,1-((y-CY)/ry)**2));
+  const arc = (y,rx=RX,ry=RY) => { const dx = xAt(y,rx,ry); return `M${(CX-dx).toFixed(1)} ${y} A${rx} ${ry} 0 0 1 ${(CX+dx).toFixed(1)} ${y}`; };
+  const cap = `<path d="${arc(95)} C 205 82, 190 74, 172 72 C 160 70, 148 74, 136 72 C 118 70, 100 78, 88 95 z" fill="${col}"/>`;
+  let s = '';
+  if(bald>=3){
+    s = '';
+  } else if(bald===2){
+    const patch = `<path d="M86 106 C 86 82, 96 66, 112 58 L 118 70 C 106 78, 98 90, 96 108 z" fill="${col}"/>`;
+    s = patch + `<g transform="translate(300 0) scale(-1 1)">${patch}</g>`;
+  } else if(bald===1){
+    /* receding: temples open high, a low peak in the middle */
+    s = `<path d="${arc(95)} C 214 80, 206 62, 192 52 C 180 62, 166 70, 150 72 C 134 70, 120 62, 108 52 C 94 62, 86 80, 86.6 95 z" fill="${col}"/>`;
+  } else {
+    switch(def.cap){
+      case 'short': s = `<path d="${arc(84)} C 196 70, 176 64, 150 64 C 124 64, 104 70, 92 84 z" fill="${col}"/>`; break;
+      case 'buzz':  s = `<path d="${arc(92)} C 202 72, 180 62, 150 62 C 120 62, 98 72, 90 92 z" fill="${mix(col,skin,.3)}"/>`; break;
+      case 'spiky': s = `<path d="${arc(96)} L 204 80 L 198 92 L 188 74 L 178 84 L 168 66 L 156 80 L 146 64 L 134 80 L 124 66 L 114 84 L 104 74 L 96 92 z" fill="${col}"/><path d="M118 40 l6 -14 l8 12 M146 34 l4 -14 l6 14 M172 38 l8 -12 l4 14" fill="${col}" stroke="${col}" stroke-width="3" stroke-linejoin="round"/>`; break;
+      case 'curly': s = `<path d="${arc(98,68,78)} a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 z" fill="${col}"/>`; break;
+      case 'undercut': s = `<path d="${arc(78,54,72)} C 184 62, 168 58, 150 58 C 132 58, 116 62, 104 78 z" fill="${col}"/><path d="M92 92 C 94 76, 98 66, 104 60 L 108 72 C 102 78, 98 86, 96 96 z M208 92 C 206 76, 202 66, 196 60 L 192 72 C 198 78, 202 86, 204 96 z" fill="${col}" opacity="0.45"/>`; break;
+      case 'pixie': s = cap + `<path d="M150 72 C 172 66, 196 72, 212 96 L 202 108 C 192 88, 176 80, 150 82 z" fill="${col}"/>`; break;
+      case 'tight': s = `<path d="${arc(92)} C 200 80, 176 74, 150 74 C 124 74, 100 80, 90 92 z" fill="${col}"/><path d="M150 36 v36" stroke="${shade(col,.25)}" stroke-width="1.5"/>`; break;
+      default: s = cap;
+    }
+    if(def.part) s += `<path d="M176 60 C 196 60, 208 78, 212 96 C 206 90, 196 86, 186 84 z" fill="${col}"/><path d="M132 40 C 150 36, 176 38, 196 50" stroke="${skin}" stroke-width="1.5" fill="none" opacity="0.7"/>`;
+    if(def.swoop===1) s += `<path d="M104 62 C 110 30, 150 14, 186 30 C 200 36, 208 50, 210 66 C 196 44, 160 36, 130 52 C 118 58, 110 62, 104 62 z" fill="${col}"/>`;
+    if(def.swoop===2) s += `<path d="M100 66 C 104 20, 160 4, 200 26 C 212 32, 214 50, 212 70 C 200 40, 150 30, 100 66 z" fill="${col}"/>`;
+    if(def.fringe) s += `<path d="${arc(95)} L 213.4 112 C 206 98, 198 86, 190 82 L 182 102 C 176 86, 168 76, 150 74 C 132 76, 124 86, 118 102 L 110 82 C 102 86, 94 98, 86.6 112 z" fill="${col}"/>`;
+  }
+  if(grey===1 && bald<3) s += `<path d="M88 95 C 92 84, 98 76, 106 72 L 110 78 C 102 82, 96 88, 92 96 z" fill="${streakCol}" opacity="0.95"/>`;
+  if(glasses) s += `<g fill="none" stroke="#2a2a2a" stroke-width="2.5"><path d="M112 52 h76"/><circle cx="130" cy="52" r="10" fill="rgba(255,255,255,0.25)"/><circle cx="170" cy="52" r="10" fill="rgba(255,255,255,0.25)"/></g>`;
+  return s;
+}
+return {draw:draw, resolve:resolve, outfitName:outfitName, COUNTRIES:COUNTRIES};
+})();
+const FIG_COUNTRY={old_republic:"republic",marran:"marran",directorate:"directorate",zahran:"zahran",aldmere:"aldmere"};
+const FIG_BG={dynasty:"scion",firebrand:"firebrand",magnate:"magnate",scholar:"scholar",hardliner:"hardliner"};
+const FIG_CIRCLE={family:"family",shark:"shark",machine:"apparatus",movement:"movement",patron:"donor"};
+/* One seed per career, derived from the run seed and the name so that saves written before the
+   figures existed still draw the same person every time they are opened. */
+function figureSeed(){
+  const p=G.player;
+  if(p&&p.figureSeed!==undefined)return p.figureSeed>>>0;
+  const src=String((p&&p.name)||"")+"|"+String(G.runSeed!==undefined?G.runSeed:(G.seed||0))+"|"+String((G.setup&&G.setup.origin)||"");
+  let x=2166136261>>>0;
+  for(let i=0;i<src.length;i++){x^=src.charCodeAt(i);x=Math.imul(x,16777619)>>>0;}
+  if(p)p.figureSeed=x>>>0;
+  return x>>>0;
+}
+/* The spec draws the custom-career ladder only. A classic life is skipped rather than drawn in
+   the wrong century: Aldmere means 1350 to this engine, and Marie Antoinette is 1770. */
+function figureState(){
+  const p=G.player;
+  if(!p||p.scenario)return null;
+  const cid=FIG_COUNTRY[(G.setup&&G.setup.country)||""];
+  if(!cid)return null;
+  const fc=FIGURE.COUNTRIES.filter(function(x){return x.id===cid;})[0];
+  if(!fc)return null;
+  const S=sys(),gTop=((S&&S.ladder)||[]).length-1,fTop=fc.ladder.length-1;
+  const off=Math.max(0,Math.min(p.office||0,gTop));
+  /* the game has two rungs the figures do not: a national leader and a world leader both wear
+     the sash, everything below clamps to the last ordinary post */
+  const post=off>=Math.max(0,gTop-1)?fTop:Math.min(off,fTop-1);
+  return {country:cid,background:FIG_BG[(G.setup&&G.setup.origin)||""]||"scholar",
+          circle:FIG_CIRCLE[(G.setup&&G.setup.circle)||""]||"family",
+          post:post,gender:p.gender||(G.setup&&G.setup.gender)||"x",seed:figureSeed()};
+}
+function playerFigureHtml(px,caption){
+  let st=null;
+  try{st=figureState();}catch(e){return "";}
+  if(!st)return "";
+  let svg="",R=null;
+  try{svg=FIGURE.draw(st);R=FIGURE.resolve(st);}catch(e){return "";}
+  const w=Math.round(px*300/460);
+  const cap=(caption&&R)?`<div class="figcap">${deT(R.postName)} \u00b7 ${R.age}</div>`:"";
+  return `<div class="figwrap"><div class="figbox" style="width:${w}px;height:${px}px">${svg}</div>${cap}</div>`;
+}
 function drawer(){
   const p=G.player,S=sys();
   const infoRow=G._hudInfo?`<div class="inforow" style="margin-bottom:7px">${G._hudInfo}</div>`:"";
@@ -16971,7 +17546,7 @@ function drawer(){
   const tr=p.traits.length?p.traits.map(t=>{const isOrigin=t===ORIGIN_TRAIT[G.setup.origin];return `<span class="tchip" title="${traitTip(t)}" style="cursor:help;${traitChipStyle(t,isOrigin)}">${isOrigin?"★ ":""}${traitName(t)}</span>`;}).join(""):`<span class="muted">No trait unlocked yet</span>`;
   const flags=Object.keys(p.flags).filter(f=>FLAG_LABELS[f]);
   const fl=flags.length?`<div class="dsub">Reputation</div>${flags.map(f=>`<span class="flagchip ${flagCls(f)}">${FLAG_LABELS[f]}${((G.player.flagCounts||{})[f]||1)>1?` \u00d7${(G.player.flagCounts||{})[f]}`:""}</span>`).join("")}`:"";
-  return `<div class="drawer">${infoRow}${lines}${risk}<div class="dsub">Traits</div><div class="traits">${tr}</div>${fl}</div>`;
+  return `<div class="drawer">${infoRow}${playerFigureHtml(132,true)}${lines}${risk}<div class="dsub">Traits</div><div class="traits">${tr}</div>${fl}</div>`;
 }
 const FLAG_NEG=new Set(["corrupt_deal","under_investigation","jailed_rivals","crushed_protest","at_war","broke_promise","rigged_vote","betrayed_mentor","sibling_scandal","ordered_hit","cult_of_personality","surveillance_state","offshore_wealth","affair_exposed","gerrymandered","press_curbed","rewrote_constitution","emergency_powers","changed_party","launched_border_war","war_quagmire","war_escalator","war_record_buried","frontier_cuba_strike","frontier_world_war","frontier_berserker","world_ended","dt_birther"]);
 const FLAG_POS=new Set(["war_hero","peace_broker","foreign_ally","green_champion","assassination_survivor","alliance_member","legacy_project","democratized"]);
@@ -17512,7 +18087,7 @@ function renderEnd(){
   const ownTraits=p.traits.slice();
   const tr=ownTraits.length?`<div class="dsub">Traits</div>${ownTraits.map(t=>{const isOrigin=t===ORIGIN_TRAIT[G.setup.origin];return `<span class="tchip" title="${traitTip(t)}" style="cursor:help;${traitChipStyle(t,isOrigin)}">${isOrigin?"★ ":""}${traitName(t)}</span>`;}).join("")}`:"";
   return `<div class="endcard">${endMark}<div class="epithet">${e.epithet}</div><div class="bigname">${p.name}</div><div class="muted" style="font-weight:600;font-size:13.5px;line-height:1.6;text-align:justify;text-justify:inter-word;hyphens:auto;margin:8px 4px 2px">${rt}</div>${world}
-    <div class="score">${e.score}</div><div class="muted" style="font-weight:800;letter-spacing:1px;font-size:12px">LEGACY POINTS</div><div style="height:14px"></div>
+    ${playerFigureHtml(190,true)}<div class="score">${e.score}</div><div class="muted" style="font-weight:800;letter-spacing:1px;font-size:12px">LEGACY POINTS</div><div style="height:14px"></div>
     <div class="muted" style="font-size:13.5px;line-height:1.6">Highest office: <b>${e.office}</b><br>Years in public life: <b>${e.years}</b> · Peak standing: <b>${e.peak}</b></div>
     <div style="height:8px"></div>
     <div class="drawer" style="text-align:left;margin-top:8px"><div class="dsub" style="margin-top:0">Every office you held</div>${careerGraphSvg()}</div>
