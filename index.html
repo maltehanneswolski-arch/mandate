@@ -65,11 +65,7 @@
   .fill{display:block;height:100%;border-radius:6px}
   .fill.mom{background:linear-gradient(90deg,#6a4aa0,#8a6fc0,#b9a3e0)}
   .fill.mor{background:linear-gradient(90deg,#e46b6b,#8ab6e8)}
-  .whobody{display:flex;gap:12px;align-items:flex-start}
-.wholines{flex:1 1 auto;min-width:0}
-.whofig{flex:0 0 auto}
-@media (max-width:430px){.whobody{gap:9px}}
-.drawerbody{display:flex;gap:10px;align-items:flex-start}
+  .drawerbody{display:flex;gap:10px;align-items:flex-start}
 .drawercol{flex:1 1 auto;min-width:0}
 .drawerfig{flex:0 0 auto;padding-top:2px}
 /* the phone has no room for two columns, so the figure goes above the bars at full size */
@@ -16564,11 +16560,9 @@ function renderCard(){
     <div class="csect"><div class="clabel">THE WORD ON THE STREET</div><div class="cpress">“${pressIntro(p,origin,ctry,S)}”</div></div>
     <div class="csect"><div class="clabel">${ctry.name.toUpperCase()}. THE SITUATION</div><div class="csit">${countrySituation(ctry,S)}</div></div>
     <div class="csect"><div class="clabel">WHO YOU ARE</div>
-      <div class="whobody"><div class="wholines">
       <div class="wholine">${origin.icon} <b>${origin.name}</b></div>
       <div class="wholine">${circle.icon} <b>${circle.name}</b></div>
       <div class="wholine">💰 Net worth <b>${money(p.netWorth)}</b></div>
-      </div><div class="whofig">${playerFigureHtml(150,false)}</div></div>
     </div>
     <div class="csect"><div class="clabel">THE OFFERS ON YOUR DESK</div><div class="csub">Each post is a different life. The senior ones hand you power from the first morning, but the years behind you are already spent; the humble ones give you nothing except time, and time is what great careers are made of. Choose where your story begins.</div><div class="offers">${offers}</div></div>
     <button class="btn btn-ghost" onclick="cardBack()">← Back to setup</button>
