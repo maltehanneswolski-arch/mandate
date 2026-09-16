@@ -167,7 +167,9 @@
   .cpress{font-style:italic;font-size:14.5px;line-height:1.5;color:#2a2f2c}
   .csit{font-size:13.5px;line-height:1.55;color:#3a413c}
   .csub{font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.45}
-  .wholine{font-size:13.5px;line-height:1.7;color:#333}
+  .whorow{display:flex;flex-wrap:wrap;align-items:center;gap:7px;border:1px solid #dfe3df;background:#f6f7f6;border-radius:10px;padding:8px 11px;font-size:13.5px;font-weight:700;line-height:1.5}
+.whosep{opacity:.35;font-weight:900}
+.wholine{font-size:13.5px;line-height:1.7;color:#333}
   .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:2px}
   .scell{}
   .scell .sk{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.2px}
@@ -16974,9 +16976,13 @@ function renderShare(){
     <div class="csect"><div class="clabel">THE WORD ON THE STREET</div><div class="cpress">“${pressIntro(p,orig,c,SY,circ)}”</div></div>
     <div class="csect"><div class="clabel">${c.name.toUpperCase()}. THE SITUATION</div><div class="csit">${countrySituation(c,SY)}</div></div>
     <div class="csect"><div class="clabel">WHO YOU ARE</div>
-      <div class="wholine">${orig?orig.icon:""} <b>${orig?orig.name:""}</b></div>
-      <div class="wholine">${circ?circ.icon:""} <b>${partyLabel(circ,G.setup.country)}</b></div>
-      <div class="wholine">💰 Net worth <b>${money(p.netWorth)}</b></div>
+      <div class="whorow">
+        <span>${orig?orig.icon:""} <b>${orig?orig.name:""}</b></span>
+        <span class="whosep">·</span>
+        <span><b style="color:${circ&&(circ.textColor||circ.color)}">${partyLabel(circ,G.setup.country)}</b></span>
+        <span class="whosep">·</span>
+        <span>💰 <b>${money(p.netWorth)}</b></span>
+      </div>
       ${traitBadge}
     </div>
     <button class="btn btn-cta" style="width:calc(100% - 40px);margin:16px 20px 0;padding:13px;font-size:15px" onclick="beginRun()">${de?"BEGINNEN":"BEGIN"}</button>
@@ -17222,16 +17228,18 @@ const BUILDS = [
  {name:'heavy',   sh:180, hip:196, torso:134}];
 
 /* hair: 10 per pool; ⚧ draws from the neutral pool */
-const HAIR_M = ['side part','slick','cropped','buzz','tousled','curly','quiff','afro','undercut','pompadour'];
-const HAIR_F = ['bob','lob','long','waves','bun','updo','ponytail','braid','pixie','long curls'];
-const HAIR_X = ['cropped','buzz','tousled','curly','pixie','undercut','bob','bun','afro','side part'];
+const HAIR_M = ['side part','slick','cropped','buzz','tousled','curly','quiff','afro','undercut','crew'];
+const HAIR_F = ['bob','lob','long','waves','bun','chignon','ponytail','braid','pixie','blunt fringe'];
+const HAIR_X = ['cropped','buzz','tousled','coils','pixie','undercut','bob','shag','afro','wavy top'];
 const STYLE = {
- 'side part':{cap:'cap',part:true}, slick:{cap:'cap'}, cropped:{cap:'short'}, buzz:{cap:'buzz'}, tousled:{cap:'spiky'}, curly:{cap:'curly'},
+ 'side part':{cap:'cap',part:true}, slick:{cap:'slick'}, cropped:{cap:'short'}, buzz:{cap:'buzz'}, tousled:{cap:'tousled'}, curly:{cap:'curly'},
  quiff:{cap:'cap',swoop:1}, pompadour:{cap:'cap',swoop:2}, afro:{cap:'curly',back:'afro'}, undercut:{cap:'undercut'},
- bob:{cap:'cap',back:'jaw',fringe:true}, lob:{cap:'cap',back:'shoulder',fringe:true}, long:{cap:'cap',back:'long',fringe:true}, waves:{cap:'cap',back:'longwavy',fringe:true},
- bun:{cap:'tight',bun:'small'}, updo:{cap:'tight',bun:'big'}, ponytail:{cap:'tight',tail:true}, braid:{cap:'tight',braid:true}, pixie:{cap:'pixie'}, 'long curls':{cap:'curly',back:'longwavy'}
+ bob:{cap:'cap',back:'jaw',fringe:true}, lob:{cap:'cap',back:'shoulder',fringe:true}, long:{cap:'cap',back:'long',fringe:true}, waves:{cap:'wavy',back:'longwavy',fringe:true},
+ bun:{cap:'tight',bun:'small'}, updo:{cap:'tight',bun:'big'}, ponytail:{cap:'tight',tail:true}, braid:{cap:'tight',braid:true}, pixie:{cap:'pixie'}, 'long curls':{cap:'curly',back:'longwavy'},
+ crew:{cap:'crew'}, 'wavy top':{cap:'wavy'}, coils:{cap:'coils'}, shag:{cap:'shag'},
+ 'blunt fringe':{cap:'cap',back:'jaw',blunt:true}, chignon:{cap:'tight',bun:'low'}
 };
-const SHORT_CAPS = ['cap','short','buzz','spiky','curly','undercut','pixie','tight'];
+const SHORT_CAPS = ['cap','slick','short','buzz','tousled','crew','curly','coils','undercut','pixie','tight','wavy','shag'];
 /* ten Classic Political Lives: fixed look + five career stages (post, age, kit level, greying, hair loss) */
 const CLASSICS = {
  frontier:{name:'John F. Kennedy', country:'marran', background:'scion', gender:'m', seed:1946, circle:'family',
@@ -17683,7 +17691,7 @@ function draw(s){
   add(sleeve(rp[0],rp[1]));
 
   /* ============ armband on the right sleeve (firebrand, rung 1) */
-  if(b.id==='firebrand' && wear===1){ add(`<rect x="${rp[0]-sleeveW/2}" y="${rp[1]+22}" width="${sleeveW}" height="10" fill="${R.party.color}"/>`); }
+  /* the sleeve band read as a stray stripe on the arm and is gone */
 
   /* ============ watch (worn) */
   if(R.watch){ const wc = R.watch==='gold watch' ? metal : '#4a4a50'; add(`<rect x="${rp[0]-sleeveW/2}" y="${handY-handR-16}" width="${sleeveW}" height="7" fill="${wc}"/><circle cx="${rp[0]}" cy="${handY-handR-12.5}" r="4" fill="${wc}" stroke="#f4f1e6" stroke-width="1"/>`); }
@@ -17698,7 +17706,8 @@ function draw(s){
     else add(`<g transform="translate(${lhx} ${hy+handR-6})"><rect x="-8" y="0" width="16" height="22" rx="2" fill="#d8c9a8"/><path d="M-8 6 h16" stroke="#7a1f1f" stroke-width="2"/></g>`);
   }
   if(R.prop!=='none' && R.prop!=='handbag' && b.id==='firebrand'){
-    if(!medieval) add(`<g transform="translate(${rhx} ${hy}) rotate(150)"><rect x="-6" y="-12" width="12" height="24" rx="3" fill="#333"/><path d="M-6 -12 l-16 -34 h44 l-16 34 z" fill="#c0392b"/><path d="M-22 -46 h44 v-4 h-44 z" fill="#333"/></g>`);
+    /* held: the grip is inside the fist and the bell points up and away from the body */
+    if(!medieval) add(`<g transform="translate(${rhx+handR*0.35} ${hy}) rotate(28)"><rect x="-4.5" y="-10" width="9" height="20" rx="3" fill="#333"/><path d="M-5 -10 l-9 -22 h28 l-9 22 z" fill="#c0392b"/><path d="M-14 -32 h28 v-3.5 h-28 z" fill="#333"/><circle cx="0" cy="2" r="3.2" fill="${SKIN}"/></g>`);
     else add(`<g transform="translate(${rhx+4} ${hy})"><rect x="-3" y="-120" width="6" height="128" fill="#6a5640"/><rect x="-22" y="-146" width="44" height="30" rx="2" fill="#d8c9a8"/><path d="M-14 -136 h28 M-14 -128 h20" stroke="#7a1f1f" stroke-width="2"/></g>`);
   }
   if(R.prop!=='none' && R.prop!=='handbag' && b.id==='scholar'){
@@ -17718,20 +17727,26 @@ function draw(s){
     if(R.earrings) add(`<circle cx="90" cy="120" r="3" fill="${metal}"/><circle cx="210" cy="120" r="3" fill="${metal}"/>`); }
   add(hairFront(def, hairCol, grey, bald, SKIN, b.id==='scholar' && !R.sunglasses && R.headGlasses!==false, streakCol));
   /* face accessories: no eyes, only the frames */
-  const FR = '#2a2a2a';
+  const FR = "#2a2a2a";
+  /* the head is one ellipse, so the eyewear is derived from it: the arms reach the skull edge,
+     the lenses are a fixed fraction of the face width, and nothing is hand-placed. */
+  const EY=104, EDX=62*Math.sqrt(Math.max(0,1-((EY-105)/70)**2));
+  const LC=EDX*0.385, LR=EDX*0.26, ARM=EDX-2, BR=LC-LR;
+  const armPath=`M${(150-LC+LR).toFixed(1)} ${EY} h${(2*(LC-LR)).toFixed(1)} M${(150-LC-LR).toFixed(1)} ${EY} H${(150-ARM).toFixed(1)} M${(150+LC+LR).toFixed(1)} ${EY} H${(150+ARM).toFixed(1)}`;
+  const rectLens=(w,hh,r)=>`<rect x="${(150-LC-w/2).toFixed(1)}" y="${(EY-hh/2).toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" rx="${r}"/><rect x="${(150+LC-w/2).toFixed(1)}" y="${(EY-hh/2).toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" rx="${r}"/>`;
   switch(R.sunglasses){
-    case 'aviators': add(`<path d="M94 100 h112" stroke="#111" stroke-width="3"/><path d="M100 98 h44 v6 a22 16 0 0 1 -44 0 z" fill="#111"/><path d="M156 98 h44 v6 a22 16 0 0 1 -44 0 z" fill="#111"/>`); break;
-    case 'wayfarers': add(`<path d="M94 100 h112" stroke="#111" stroke-width="3"/><rect x="100" y="96" width="44" height="20" rx="6" fill="#111"/><rect x="156" y="96" width="44" height="20" rx="6" fill="#111"/>`); break;
-    case 'round shades': add(`<path d="M92 104 h116" stroke="#111" stroke-width="2.5"/><circle cx="126" cy="104" r="16" fill="#111"/><circle cx="174" cy="104" r="16" fill="#111"/>`); break;
-    case 'oversized shades': add(`<path d="M90 100 h120" stroke="#111" stroke-width="3"/><rect x="94" y="92" width="52" height="28" rx="10" fill="#111"/><rect x="154" y="92" width="52" height="28" rx="10" fill="#111"/>`); break;
-    case 'wraparounds': add(`<path d="M92 96 h116 a10 10 0 0 1 0 20 h-116 a10 10 0 0 1 0 -20 z" fill="#111"/><path d="M144 116 l6 -7 l6 7 z" fill="${SKIN}"/>`); break;
+    case "aviators": add(`<path d="M${(150-ARM).toFixed(1)} ${EY-4} h${(2*ARM).toFixed(1)}" stroke="#111" stroke-width="3"/><path d="M${(150-LC-LR).toFixed(1)} ${EY-6} h${(2*LR).toFixed(1)} v6 a${LR.toFixed(1)} ${(LR*0.72).toFixed(1)} 0 0 1 ${(-2*LR).toFixed(1)} 0 z" fill="#111"/><path d="M${(150+LC-LR).toFixed(1)} ${EY-6} h${(2*LR).toFixed(1)} v6 a${LR.toFixed(1)} ${(LR*0.72).toFixed(1)} 0 0 1 ${(-2*LR).toFixed(1)} 0 z" fill="#111"/>`); break;
+    case "wayfarers": add(`<path d="M${(150-ARM).toFixed(1)} ${EY-4} h${(2*ARM).toFixed(1)}" stroke="#111" stroke-width="3"/><g fill="#111">${rectLens(LR*2,LR*1.5,6)}</g>`); break;
+    case "round shades": add(`<path d="M${(150-ARM).toFixed(1)} ${EY} h${(2*ARM).toFixed(1)}" stroke="#111" stroke-width="2.5"/><circle cx="${(150-LC).toFixed(1)}" cy="${EY}" r="${LR.toFixed(1)}" fill="#111"/><circle cx="${(150+LC).toFixed(1)}" cy="${EY}" r="${LR.toFixed(1)}" fill="#111"/>`); break;
+    case "oversized shades": add(`<path d="M${(150-ARM).toFixed(1)} ${EY-4} h${(2*ARM).toFixed(1)}" stroke="#111" stroke-width="3"/><g fill="#111">${rectLens(LR*2.5,LR*2,10)}</g>`); break;
+    case "wraparounds": add(`<path d="M${(150-ARM).toFixed(1)} ${EY-8} h${(2*ARM).toFixed(1)} a10 10 0 0 1 0 ${(LR*1.4).toFixed(1)} h${(-2*ARM).toFixed(1)} a10 10 0 0 1 0 ${(-LR*1.4).toFixed(1)} z" fill="#111"/><path d="M${(150-6)} ${(EY+LR*1.4-8).toFixed(1)} l6 -7 l6 7 z" fill="${SKIN}"/>`); break;
   }
   switch(R.glasses){
-    case 'round glasses': add(`<g fill="none" stroke="${FR}" stroke-width="2.5"><circle cx="126" cy="104" r="16"/><circle cx="174" cy="104" r="16"/><path d="M142 104 h16 M110 104 h-16 M190 104 h16"/></g>`); break;
-    case 'square glasses': add(`<g fill="none" stroke="${FR}" stroke-width="2.5"><rect x="108" y="92" width="34" height="24" rx="4"/><rect x="158" y="92" width="34" height="24" rx="4"/><path d="M142 104 h16 M108 104 h-14 M192 104 h14"/></g>`); break;
-    case 'rectangular glasses': add(`<g fill="none" stroke="${FR}" stroke-width="2.5"><rect x="106" y="97" width="36" height="15" rx="3"/><rect x="158" y="97" width="36" height="15" rx="3"/><path d="M142 104 h16 M106 104 h-12 M194 104 h12"/></g>`); break;
-    case 'browline glasses': add(`<g fill="none" stroke="${FR}"><path d="M108 99 h34 M158 99 h34" stroke-width="4.5"/><path d="M108 99 a17 15 0 0 0 34 0 M158 99 a17 15 0 0 0 34 0" stroke-width="1.5"/><path d="M142 100 h16 M108 100 h-14 M192 100 h14" stroke-width="2.5"/></g>`); break;
-    case 'rimless glasses': add(`<g fill="none" stroke="#666" stroke-width="1.4"><ellipse cx="126" cy="104" rx="17" ry="12"/><ellipse cx="174" cy="104" rx="17" ry="12"/></g><g fill="none" stroke="${metal}" stroke-width="2"><path d="M143 103 h14 M109 104 h-15 M191 104 h15"/></g>`); break;
+    case "round glasses": add(`<g fill="none" stroke="${FR}" stroke-width="2.5"><circle cx="${(150-LC).toFixed(1)}" cy="${EY}" r="${LR.toFixed(1)}"/><circle cx="${(150+LC).toFixed(1)}" cy="${EY}" r="${LR.toFixed(1)}"/><path d="${armPath}"/></g>`); break;
+    case "square glasses": add(`<g fill="none" stroke="${FR}" stroke-width="2.5">${rectLens(LR*2.1,LR*1.6,4)}<path d="${armPath}"/></g>`); break;
+    case "rectangular glasses": add(`<g fill="none" stroke="${FR}" stroke-width="2.5">${rectLens(LR*2.2,LR*1.1,3)}<path d="${armPath}"/></g>`); break;
+    case "browline glasses": add(`<g fill="none" stroke="${FR}"><path d="M${(150-LC-LR).toFixed(1)} ${EY-5} h${(2*LR).toFixed(1)} M${(150+LC-LR).toFixed(1)} ${EY-5} h${(2*LR).toFixed(1)}" stroke-width="4.5"/><path d="M${(150-LC-LR).toFixed(1)} ${EY-5} a${LR.toFixed(1)} ${(LR*0.9).toFixed(1)} 0 0 0 ${(2*LR).toFixed(1)} 0 M${(150+LC-LR).toFixed(1)} ${EY-5} a${LR.toFixed(1)} ${(LR*0.9).toFixed(1)} 0 0 0 ${(2*LR).toFixed(1)} 0" stroke-width="1.5"/><path d="${armPath}" stroke-width="2.5"/></g>`); break;
+    case "rimless glasses": add(`<g fill="none" stroke="#666" stroke-width="1.4"><ellipse cx="${(150-LC).toFixed(1)}" cy="${EY}" rx="${(LR*1.05).toFixed(1)}" ry="${(LR*0.74).toFixed(1)}"/><ellipse cx="${(150+LC).toFixed(1)}" cy="${EY}" rx="${(LR*1.05).toFixed(1)}" ry="${(LR*0.74).toFixed(1)}"/></g><g fill="none" stroke="${metal}" stroke-width="2"><path d="${armPath}"/></g>`); break;
   }
   if(medieval && b.id==='scion' && wear>=3 && wear<5){ add(`<path d="M92 76 h116" stroke="${metal}" stroke-width="4"/><circle cx="150" cy="70" r="4" fill="${metal}"/>`); }
   if(medieval && wear>=5){ add(`<path d="M96 70 L100 44 L118 60 L134 36 L150 58 L166 36 L182 60 L200 44 L204 70 Q150 82 96 70 z" fill="${metal}"/><circle cx="150" cy="52" r="4" fill="#7a1f1f"/>`); }
@@ -17742,41 +17757,85 @@ function draw(s){
 
 /* hair in front of the head; bald overrides for short caps */
 function hairFront(def, col, grey, bald, skin, glasses, streakCol){
-  /* every cap starts on an ellipse 2px larger than the head, so no skin shows above the hair */
-  const RX=64, RY=72, CX=150, CY=105;
-  const xAt = (y,rx=RX,ry=RY) => rx*Math.sqrt(Math.max(0,1-((y-CY)/ry)**2));
-  const arc = (y,rx=RX,ry=RY) => { const dx = xAt(y,rx,ry); return `M${(CX-dx).toFixed(1)} ${y} A${rx} ${ry} 0 0 1 ${(CX+dx).toFixed(1)} ${y}`; };
-  const cap = `<path d="${arc(95)} C 205 82, 190 74, 172 72 C 160 70, 148 74, 136 72 C 118 70, 100 78, 88 95 z" fill="${col}"/>`;
-  let s = '';
+  /* One skull, one helper. RX/RY sit 2px proud of the head so no scalp shows at the join. */
+  const CX=150, CY=105, RX=64, RY=72;
+  const ex=(y,rx,ry)=>((rx||RX)*Math.sqrt(Math.max(0,1-((y-CY)/(ry||RY))**2)));
+  const arc=(y,rx,ry)=>{const dx=ex(y,rx,ry);return `M${(CX-dx).toFixed(1)} ${y} A${rx||RX} ${ry||RY} 0 0 1 ${(CX+dx).toFixed(1)} ${y}`;};
+  /* the shell from the top down to ys at the temples, closed by a hairline rising to yc at the
+     middle of the forehead. The hairline is a curve, never a chord. */
+  const crown=(ys,yc,fill,rx,ry)=>{
+    const dx=ex(ys,rx,ry), L=(CX-dx).toFixed(1);
+    return `<path d="${arc(ys,rx,ry)} C ${CX+dx*0.72} ${yc+(ys-yc)*0.30}, ${CX+dx*0.40} ${yc}, ${CX} ${yc}      C ${CX-dx*0.40} ${yc}, ${CX-dx*0.72} ${yc+(ys-yc)*0.30}, ${L} ${ys} z" fill="${fill||col}"/>`;
+  };
+  const scallop=(ys,yc,n,amp)=>{
+    const dx=ex(ys), L=CX-dx, R=CX+dx;
+    let d=`${arc(ys)} `;
+    for(let i=0;i<n;i++){
+      const t0=i/n, t1=(i+1)/n;
+      const x0=R+(L-R)*t0, x1=R+(L-R)*t1, mid=(x0+x1)/2;
+      const base=yc+(ys-yc)*Math.pow(Math.abs((mid-CX)/dx),1.6);
+      d+=`Q ${mid} ${base+amp} ${x1.toFixed(1)} ${(yc+(ys-yc)*Math.pow(Math.abs((x1-CX)/dx),1.6)).toFixed(1)} `;
+    }
+    return `<path d="${d}z" fill="${col}"/>`;
+  };
+  let s = "";
   if(bald>=3){
-    s = '';
+    s = "";
   } else if(bald===2){
-    const patch = `<path d="M86 106 C 86 82, 96 66, 112 58 L 118 70 C 106 78, 98 90, 96 108 z" fill="${col}"/>`;
+    const patch = `<path d="M${(CX-ex(112)).toFixed(1)} 112 C 86 88, 94 68, 112 58 L 119 71 C 105 80, 97 94, 96 112 z" fill="${col}"/>`;
     s = patch + `<g transform="translate(300 0) scale(-1 1)">${patch}</g>`;
   } else if(bald===1){
-    /* receding: temples open high, a low peak in the middle */
-    s = `<path d="${arc(95)} C 214 80, 206 62, 192 52 C 180 62, 166 70, 150 72 C 134 70, 120 62, 108 52 C 94 62, 86 80, 86.6 95 z" fill="${col}"/>`;
+    const dx=ex(96);
+    s = `<path d="${arc(96)} C ${CX+dx*0.92} 74, ${CX+dx*0.66} 56, ${CX+dx*0.34} 54
+      C ${CX+dx*0.16} 66, ${CX+dx*0.06} 72, ${CX} 73
+      C ${CX-dx*0.06} 72, ${CX-dx*0.16} 66, ${CX-dx*0.34} 54
+      C ${CX-dx*0.66} 56, ${CX-dx*0.92} 74, ${(CX-dx).toFixed(1)} 96 z" fill="${col}"/>`;
   } else {
     switch(def.cap){
-      case 'short': s = `<path d="${arc(84)} C 196 70, 176 64, 150 64 C 124 64, 104 70, 92 84 z" fill="${col}"/>`; break;
-      case 'buzz':  s = `<path d="${arc(92)} C 202 72, 180 62, 150 62 C 120 62, 98 72, 90 92 z" fill="${mix(col,skin,.3)}"/>`; break;
-      case 'spiky': s = `<path d="${arc(96)} L 204 80 L 198 92 L 188 74 L 178 84 L 168 66 L 156 80 L 146 64 L 134 80 L 124 66 L 114 84 L 104 74 L 96 92 z" fill="${col}"/><path d="M118 40 l6 -14 l8 12 M146 34 l4 -14 l6 14 M172 38 l8 -12 l4 14" fill="${col}" stroke="${col}" stroke-width="3" stroke-linejoin="round"/>`; break;
-      case 'curly': s = `<path d="${arc(98,68,78)} a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 a8.25 8 0 0 1 -16.5 0 z" fill="${col}"/>`; break;
-      case 'undercut': s = `<path d="${arc(78,54,72)} C 184 62, 168 58, 150 58 C 132 58, 116 62, 104 78 z" fill="${col}"/><path d="M92 92 C 94 76, 98 66, 104 60 L 108 72 C 102 78, 98 86, 96 96 z M208 92 C 206 76, 202 66, 196 60 L 192 72 C 198 78, 202 86, 204 96 z" fill="${col}" opacity="0.45"/>`; break;
-      case 'pixie': s = cap + `<path d="M150 72 C 172 66, 196 72, 212 96 L 202 108 C 192 88, 176 80, 150 82 z" fill="${col}"/>`; break;
-      case 'tight': s = `<path d="${arc(92)} C 200 80, 176 74, 150 74 C 124 74, 100 80, 90 92 z" fill="${col}"/><path d="M150 36 v36" stroke="${shade(col,.25)}" stroke-width="1.5"/>`; break;
-      default: s = cap;
+      case "short":   s = crown(90,68); break;
+      case "crew":    s = crown(86,64) + `<path d="${arc(70)}" fill="none" stroke="${mix(col,skin,.35)}" stroke-width="3"/>`; break;
+      /* buzz: close to the scalp, muted, and cut high at the sides so it is not a swim cap */
+      case "buzz":    s = crown(88,72,mix(col,skin,.08)); break;
+      case "slick":   s = crown(96,72) + `<g stroke="${shade(col,.30)}" stroke-width="1.8" fill="none" stroke-linecap="round">        <path d="M116 56 C 136 46, 166 46, 188 58"/><path d="M112 66 C 134 56, 168 56, 194 68"/></g>`; break;
+      case "tousled": s = scallop(96,68,7,7); break;
+      case "curly":   s = scallop(100,64,8,9); break;
+      case "coils":   s = scallop(98,62,11,6) + `<g fill="${shade(col,.22)}">        ${[[124,60],[150,54],[176,60],[113,76],[187,76],[150,72]].map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="5"/>`).join("")}</g>`; break;
+      /* the wave lines stay above the hairline so they never land on the forehead */
+      case "wavy":    s = crown(96,72) + `<g stroke="${shade(col,.26)}" stroke-width="2.4" fill="none" stroke-linecap="round">        <path d="M116 52 q 11 -9 22 0 q 11 9 22 0"/>        <path d="M110 64 q 11 -9 22 0 q 11 9 22 0"/></g>`; break;
+      /* shag: longer, layered, and cut off at the jaw rather than flicking out into the air */
+      case "shag":    s = scallop(100,66,5,10) + `<path d="M${(CX-ex(100)).toFixed(1)} 100 C ${CX-ex(100)-2} 114, ${CX-ex(118)-2} 124, ${(CX-ex(124)).toFixed(1)} 126 L ${(CX-ex(118)+10).toFixed(1)} 122 C ${CX-ex(104)+6} 114, ${CX-ex(100)+8} 106, ${(CX-ex(100)+10).toFixed(1)} 100 z" fill="${col}"/>        <g transform="translate(300 0) scale(-1 1)"><path d="M${(CX-ex(100)).toFixed(1)} 100 C ${CX-ex(100)-2} 114, ${CX-ex(118)-2} 124, ${(CX-ex(124)).toFixed(1)} 126 L ${(CX-ex(118)+10).toFixed(1)} 122 C ${CX-ex(104)+6} 114, ${CX-ex(100)+8} 106, ${(CX-ex(100)+10).toFixed(1)} 100 z" fill="${col}"/></g>`; break;
+      /* undercut: a high crown with a clean shaved band under it, no translucent smudges */
+      case "undercut":{
+        const wedge=`<path d="M${(CX-ex(98)).toFixed(1)} 98 C ${(CX-ex(98)+1).toFixed(1)} 86, ${(CX-ex(84)+2).toFixed(1)} 76, ${(CX-ex(74)).toFixed(1)} 72 L ${(CX-ex(74)+13).toFixed(1)} 80 C ${(CX-ex(86)+14).toFixed(1)} 86, ${(CX-ex(96)+11).toFixed(1)} 92, ${(CX-ex(98)+10).toFixed(1)} 99 z" fill="${mix(col,skin,.42)}"/>`;
+        s = wedge + `<g transform="translate(300 0) scale(-1 1)">${wedge}</g>` + crown(84,58,col);
+        break;}
+      /* pixie: the side sweep starts inside the crown so there is no wedge of scalp */
+      case "pixie":   s = crown(96,66) + `<path d="M${(CX-6)} 68 C ${CX+30} 60, ${CX+50} 78, ${(CX+ex(106)).toFixed(1)} 108 L ${(CX+ex(118)).toFixed(1)} 116 C ${CX+40} 90, ${CX+24} 82, ${(CX-6)} 82 z" fill="${col}"/>`; break;
+      case "tight":   s = crown(94,74,col,RX-2,RY-2) + `<g stroke="${shade(col,.3)}" stroke-width="1.4" fill="none">        <path d="M124 52 C 128 66, 128 76, 126 86"/><path d="M150 46 v42"/><path d="M176 52 C 172 66, 172 76, 174 86"/></g>`; break;
+      default:        s = crown(96,72);
     }
-    if(def.part) s += `<path d="M176 60 C 196 60, 208 78, 212 96 C 206 90, 196 86, 186 84 z" fill="${col}"/><path d="M132 40 C 150 36, 176 38, 196 50" stroke="${skin}" stroke-width="1.5" fill="none" opacity="0.7"/>`;
-    if(def.swoop===1) s += `<path d="M104 62 C 110 30, 150 14, 186 30 C 200 36, 208 50, 210 66 C 196 44, 160 36, 130 52 C 118 58, 110 62, 104 62 z" fill="${col}"/>`;
-    if(def.swoop===2) s += `<path d="M100 66 C 104 20, 160 4, 200 26 C 212 32, 214 50, 212 70 C 200 40, 150 30, 100 66 z" fill="${col}"/>`;
-    if(def.fringe) s += `<path d="${arc(95)} L 213.4 112 C 206 98, 198 86, 190 82 L 182 102 C 176 86, 168 76, 150 74 C 132 76, 124 86, 118 102 L 110 82 C 102 86, 94 98, 86.6 112 z" fill="${col}"/>`;
+    if(def.part){
+      s += `<path d="M170 52 C 196 58, 208 76, ${(CX+ex(98)).toFixed(1)} 98 C 204 84, 192 76, 174 74 z" fill="${shade(col,.16)}"/>`;
+      s += `<path d="M166 48 C 177 60, 180 72, 178 84" fill="none" stroke="${shade(col,.34)}" stroke-width="2" stroke-linecap="round"/>`;
+    }
+    /* the swoops run their base well inside the crown, so no notch opens where they meet */
+    if(def.swoop===1) s += `<path d="M${(CX-ex(88)).toFixed(1)} 88 C 108 44, 148 24, 184 36 C 200 42, 209 54, 211 72 C 196 52, 158 46, 130 62 C 118 70, 108 80, ${(CX-ex(88)).toFixed(1)} 88 z" fill="${col}"/>`;
+    if(def.swoop===2) s += `<path d="M${(CX-ex(92)).toFixed(1)} 92 C 104 34, 160 16, 200 36 C 212 42, 215 58, 213 78 C 198 50, 150 44, ${(CX-ex(92)).toFixed(1)} 92 z" fill="${col}"/>`;
+    if(def.fringe) s += `<path d="${arc(95)} L ${(CX+ex(95)).toFixed(1)} 110 C 204 96, 196 84, 188 80 L 181 100 C 175 84, 167 75, 150 74 C 133 75, 125 84, 119 100 L 112 80 C 104 84, 96 96, ${(CX-ex(95)).toFixed(1)} 110 z" fill="${col}"/>`;
+    if(def.blunt) s += `<path d="${arc(95)} L ${(CX+ex(95)).toFixed(1)} 97 L ${(CX+ex(95)).toFixed(1)} 86 L ${(CX-ex(95)).toFixed(1)} 86 L ${(CX-ex(95)).toFixed(1)} 97 z" fill="${col}"/>`;
   }
-  if(grey===1 && bald<3) s += `<path d="M88 95 C 92 84, 98 76, 106 72 L 110 78 C 102 82, 96 88, 92 96 z" fill="${streakCol}" opacity="0.95"/>`;
-  if(glasses) s += `<g fill="none" stroke="#2a2a2a" stroke-width="2.5"><path d="M112 52 h76"/><circle cx="130" cy="52" r="10" fill="rgba(255,255,255,0.25)"/><circle cx="170" cy="52" r="10" fill="rgba(255,255,255,0.25)"/></g>`;
+  /* a lock of grey inside the hair at the temple, following the shell */
+  if(grey===1 && bald<3){
+    const xa=CX-ex(92)+3, xb=CX-ex(66)+5;
+    s += `<path d="M${xa.toFixed(1)} 92 C ${(xa+4).toFixed(1)} 80, ${(xb-3).toFixed(1)} 70, ${xb.toFixed(1)} 62 L ${(xb+11).toFixed(1)} 66 C ${(xa+15).toFixed(1)} 76, ${(xa+10).toFixed(1)} 84, ${(xa+9).toFixed(1)} 93 z" fill="${streakCol}" opacity="0.85"/>`;
+  }
+  if(glasses){
+    const y=54, dx=ex(y), lens=Math.min(11,dx*0.30), c=dx*0.46;
+    s += `<g fill="none" stroke="#2a2a2a" stroke-width="2.5">      <path d="M${(CX-dx+3).toFixed(1)} ${y} h${(dx*2-6).toFixed(1)}"/>      <circle cx="${(CX-c).toFixed(1)}" cy="${y}" r="${lens.toFixed(1)}" fill="rgba(255,255,255,0.25)"/>      <circle cx="${(CX+c).toFixed(1)}" cy="${y}" r="${lens.toFixed(1)}" fill="rgba(255,255,255,0.25)"/></g>`;
+  }
   return s;
 }
-return {draw:draw, resolve:resolve, outfitName:outfitName, COUNTRIES:COUNTRIES, PARTIES:PARTIES, CIRCLE_TO_PARTY:CIRCLE_TO_PARTY, CLASSICS:CLASSICS};
+return {draw:draw, resolve:resolve, outfitName:outfitName, COUNTRIES:COUNTRIES, PARTIES:PARTIES, CIRCLE_TO_PARTY:CIRCLE_TO_PARTY, CLASSICS:CLASSICS, STYLE:STYLE, hairFront:hairFront, HAIR_M:HAIR_M, HAIR_F:HAIR_F, HAIR_X:HAIR_X};
 })();
 const FIG_COUNTRY={old_republic:"republic",marran:"marran",directorate:"directorate",zahran:"zahran",aldmere:"aldmere"};
 const FIG_BG={dynasty:"scion",firebrand:"firebrand",magnate:"magnate",scholar:"scholar",hardliner:"hardliner"};
