@@ -17389,6 +17389,8 @@ function resolve(s){
   const styleRoll = Math.floor(r()*10), outfit = Math.floor(r()*8), build = BUILDS[Math.floor(r()*5)];
   const uGrey = r(), uGreyStage = r(), uBald = r(), uBaldStage = r();
   const uGlass = r(), uGlassType = r(), uNeck = r(), uEar = r(), uShades = r(), uShoe = r();
+  /* appended last on purpose: any earlier draw would shift every figure already generated */
+  const uHand = r();
   let style = s.gender==='m' ? HAIR_M[styleRoll] : s.gender==='f' ? HAIR_F[styleRoll] : HAIR_X[styleRoll];
   if(b.id==='hardliner') style = s.gender==='f' ? 'bun' : 'cropped';
   if(c.id==='directorate' && !medieval) style = s.gender==='f' ? 'bob' : 'side part';
@@ -17435,7 +17437,8 @@ function resolve(s){
   const pin = !medieval && b.id!=='hardliner' && b.id!=='firebrand' && (c.id==='marran' || wear>=1);
   if(pin) acc.push(c.id==='marran' ? 'flag pin' : c.id==='directorate' ? 'rank badge' : 'party pin');
   const R = { c,b,party,partyName:party.names[c.id],partyStyle:true,rung,age,wear,postName:c.ladder[rung], post:POSTS[wear], g:s.gender, medieval,
-           skin, hairc, style, outfit, grey, bald, build, acc, shoe, sunglasses, glasses, necklace: goldChain?'gold chain':necklace, earrings, watch, pocketSquare, cufflinks, pin };
+           skin, hairc, style, outfit, grey, bald, build, acc, shoe, sunglasses, glasses, necklace: goldChain?'gold chain':necklace, earrings, watch, pocketSquare, cufflinks, pin,
+           hand: uHand<0.5 ? 'left' : 'right' };
   if(C){
     Object.assign(R, {grey:0, bald:0, glasses:null, sunglasses:(c.id==='zahran'?R.sunglasses:null), necklace:null, earrings:false}, C.look, st.look||{});
     R.grey = st.grey||0; R.bald = st.bald||0;
@@ -17679,6 +17682,10 @@ function draw(s){
       else if(wear>=3) readingGlasses();
     }
     if(R.pin) pinDot();
+    /* the chain goes on before the scarf: a scarf is worn over it, not under it */
+    if(R.necklace==='gold chain') add(`<path d="M${150-vHalf*0.9} ${shoulderY+4} q${vHalf*0.9} ${vHalf*1.6} ${vHalf*1.8} 0" fill="none" stroke="${metal}" stroke-width="3"/>`);
+    if(R.necklace==='thin chain') add(`<path d="M${150-vHalf*0.8} ${shoulderY+2} q${vHalf*0.8} ${vHalf*1.4} ${vHalf*1.6} 0" fill="none" stroke="${metal}" stroke-width="1.5"/><circle cx="150" cy="${shoulderY+vHalf*0.7+2}" r="2.5" fill="${metal}"/>`);
+    if(R.necklace==='pearls') add(`<g fill="#f4efe6" stroke="#bbb" stroke-width="0.6">${[-3,-2,-1,0,1,2,3].map(i=>`<circle cx="${150+i*vHalf*0.26}" cy="${shoulderY+8+ (9-i*i)*1.2}" r="3"/>`).join('')}</g>`);
     if(c.id==='republic' && b.id!=='hardliner' && !(b.id==='firebrand' && fireStage==='shirt')){
       const scCol = ['#6b3a3f','#8a6a2a','#3b5f4a','#4a4a55'][R.outfit%4], scCol2 = mix(scCol,'#ffffff',.3);
       const bw2 = vHalf*2+12, tx = 150 - vHalf*0.55, tw = Math.max(12, Math.round(vHalf*0.6)), tl = Math.round(torsoH*0.5);
@@ -17687,9 +17694,6 @@ function draw(s){
       add(`<g stroke="${scCol2}" stroke-width="2">${[0.35,0.6,0.85].map(k=>`<path d="M${tx} ${shoulderY+8+tl*k} h${tw}"/>`).join('')}</g>`);
       add(`<g stroke="${scCol}" stroke-width="2">${[0.2,0.5,0.8].map(k=>`<path d="M${tx+tw*k} ${shoulderY+8+tl} v6"/>`).join('')}</g>`);
     }
-    if(R.necklace==='gold chain') add(`<path d="M${150-vHalf*0.9} ${shoulderY+4} q${vHalf*0.9} ${vHalf*1.6} ${vHalf*1.8} 0" fill="none" stroke="${metal}" stroke-width="3"/>`);
-    if(R.necklace==='thin chain') add(`<path d="M${150-vHalf*0.8} ${shoulderY+2} q${vHalf*0.8} ${vHalf*1.4} ${vHalf*1.6} 0" fill="none" stroke="${metal}" stroke-width="1.5"/><circle cx="150" cy="${shoulderY+vHalf*0.7+2}" r="2.5" fill="${metal}"/>`);
-    if(R.necklace==='pearls') add(`<g fill="#f4efe6" stroke="#bbb" stroke-width="0.6">${[-3,-2,-1,0,1,2,3].map(i=>`<circle cx="${150+i*vHalf*0.26}" cy="${shoulderY+8+ (9-i*i)*1.2}" r="3"/>`).join('')}</g>`);
   } else {
     /* medieval rank detail */
     if(b.id==='scion'){ if(wear>=1) add(`<path d="M${L+4} ${shoulderY+4} h${sh-8} v18 h-${sh-8} z" fill="#efe6d6"/><g fill="#5a4a3a">${[0,1,2,3,4,5].map(i=>`<circle cx="${L+14+i*(sh-28)/5}" cy="${shoulderY+13}" r="2.2"/>`).join('')}</g>`);
@@ -17722,25 +17726,33 @@ function draw(s){
   /* the sleeve band read as a stray stripe on the arm and is gone */
 
   /* ============ watch (worn) */
-  if(R.watch){ const wc = R.watch==='gold watch' ? metal : '#4a4a50'; add(`<rect x="${rp[0]-sleeveW/2}" y="${handY-handR-16}" width="${sleeveW}" height="7" fill="${wc}"/><circle cx="${rp[0]}" cy="${handY-handR-12.5}" r="4" fill="${wc}" stroke="#f4f1e6" stroke-width="1"/>`); }
+  /* the prop picks a hand; the watch takes the other wrist so the two never sit on top of
+     each other, which is what made the megaphone unreadable. */
+  const heldProp = (R.prop==='handbag') || (R.prop!=='none' && (b.id==='magnate'||b.id==='firebrand'||b.id==='scholar'));
+  const holdLeft = !heldProp || R.hand !== 'right';
+  /* the watch only changes wrist when there is something in the other hand to avoid */
+  const wristX = holdLeft ? rp[0] : lp[0];
+  if(R.watch){ const wc = R.watch==='gold watch' ? metal : '#4a4a50'; add(`<rect x="${wristX-sleeveW/2}" y="${handY-handR-16}" width="${sleeveW}" height="7" fill="${wc}"/><circle cx="${wristX}" cy="${handY-handR-12.5}" r="4" fill="${wc}" stroke="#f4f1e6" stroke-width="1"/>`); }
 
   /* ============ the single held item */
   const lhx = lp[0], rhx = rp[0], hy = handY;
+  const phx = holdLeft ? lhx : rhx, pdir = holdLeft ? -1 : 1;
   if(R.prop==='handbag'){
-    add(`<g transform="translate(${lhx} ${hy+handR})"><path d="M-8 -6 a8 8 0 0 1 16 0" fill="none" stroke="#2a1a12" stroke-width="2.5"/><rect x="-14" y="-2" width="28" height="20" rx="3" fill="#2a1a12"/><rect x="-3" y="6" width="6" height="3" fill="${metal}"/></g>`);
+    add(`<g transform="translate(${phx} ${hy+handR})"><path d="M-8 -6 a8 8 0 0 1 16 0" fill="none" stroke="#2a1a12" stroke-width="2.5"/><rect x="-14" y="-2" width="28" height="20" rx="3" fill="#2a1a12"/><rect x="-3" y="6" width="6" height="3" fill="${metal}"/></g>`);
   }
   if(R.prop!=='none' && R.prop!=='handbag' && b.id==='magnate'){
-    if(!medieval) add(`<g transform="translate(${lhx} ${hy+handR-4})"><rect x="-3" y="0" width="6" height="14" rx="1" fill="#333"/><circle cx="0" cy="18" r="6" fill="none" stroke="#333" stroke-width="3"/></g>`);
-    else add(`<g transform="translate(${lhx} ${hy+handR-6})"><rect x="-8" y="0" width="16" height="22" rx="2" fill="#d8c9a8"/><path d="M-8 6 h16" stroke="#7a1f1f" stroke-width="2"/></g>`);
+    if(!medieval) add(`<g transform="translate(${phx} ${hy+handR-4})"><rect x="-3" y="0" width="6" height="14" rx="1" fill="#333"/><circle cx="0" cy="18" r="6" fill="none" stroke="#333" stroke-width="3"/></g>`);
+    else add(`<g transform="translate(${phx} ${hy+handR-6})"><rect x="-8" y="0" width="16" height="22" rx="2" fill="#d8c9a8"/><path d="M-8 6 h16" stroke="#7a1f1f" stroke-width="2"/></g>`);
   }
   if(R.prop!=='none' && R.prop!=='handbag' && b.id==='firebrand'){
-    /* held: the grip is inside the fist and the bell points up and away from the body */
-    if(!medieval) add(`<g transform="translate(${rhx+handR*0.35} ${hy}) rotate(28)"><rect x="-4.5" y="-10" width="9" height="20" rx="3" fill="#333"/><path d="M-5 -10 l-9 -22 h28 l-9 22 z" fill="#c0392b"/><path d="M-14 -32 h28 v-3.5 h-28 z" fill="#333"/><circle cx="0" cy="2" r="3.2" fill="${SKIN}"/></g>`);
-    else add(`<g transform="translate(${rhx+4} ${hy})"><rect x="-3" y="-120" width="6" height="128" fill="#6a5640"/><rect x="-22" y="-146" width="44" height="30" rx="2" fill="#d8c9a8"/><path d="M-14 -136 h28 M-14 -128 h20" stroke="#7a1f1f" stroke-width="2"/></g>`);
+    /* A megaphone has to read as one at 70 pixels tall: a horn that clearly widens, a dark
+       rim at the mouth so the cone has an end, a body, and a grip the fist closes around. */
+    if(!medieval) add(`<g transform="translate(${phx+pdir*handR*0.45} ${hy-2}) rotate(${pdir*34})"><rect x="-4" y="-4" width="8" height="21" rx="3.5" fill="#2f2f33"/><rect x="-7.5" y="-15" width="15" height="12" rx="3" fill="#3a3a40"/><path d="M-7.5 -15 l-11.5 -27 h38 l-11.5 27 z" fill="#c0392b"/><path d="M-3 -15 l-6.5 -25 h5.5 z" fill="#d9584a"/><path d="M-19 -42 h38 a3.2 3.2 0 0 0 0 -6.4 h-38 a3.2 3.2 0 0 0 0 6.4 z" fill="#7e2a20"/><circle cx="0" cy="5" r="4.2" fill="${SKIN}"/></g>`);
+    else add(`<g transform="translate(${phx+pdir*4} ${hy})"><rect x="-3" y="-120" width="6" height="128" fill="#6a5640"/><rect x="${pdir>0?-22:-22}" y="-146" width="44" height="30" rx="2" fill="#d8c9a8"/><path d="M-14 -136 h28 M-14 -128 h20" stroke="#7a1f1f" stroke-width="2"/></g>`);
   }
   if(R.prop!=='none' && R.prop!=='handbag' && b.id==='scholar'){
     /* book: light cover so it reads against any suit, pages edge, slips sticking out */
-    add(`<g transform="translate(${lhx} ${hy-2})"><rect x="-15" y="-24" width="30" height="42" rx="2" fill="#efe6d0" stroke="#8a7a5a" stroke-width="1.5"/><rect x="-15" y="-24" width="5" height="42" fill="#a8783a"/><path d="M-6 -16 h14 M-6 -9 h14 M-6 -2 h10" stroke="#8a7a5a" stroke-width="1.2"/><rect x="-4" y="-30" width="4" height="8" fill="#c0392b"/><rect x="4" y="-31" width="4" height="9" fill="#2e6f6a"/></g>`);
+    add(`<g transform="translate(${phx} ${hy-2})"><rect x="-15" y="-24" width="30" height="42" rx="2" fill="#efe6d0" stroke="#8a7a5a" stroke-width="1.5"/><rect x="-15" y="-24" width="5" height="42" fill="#a8783a"/><path d="M-6 -16 h14 M-6 -9 h14 M-6 -2 h10" stroke="#8a7a5a" stroke-width="1.2"/><rect x="-4" y="-30" width="4" height="8" fill="#c0392b"/><rect x="4" y="-31" width="4" height="9" fill="#2e6f6a"/></g>`);
   }
   if(b.id==='scion' && R.ring!==false){
     add(`<circle cx="${rhx-handR*0.5}" cy="${hy-3}" r="3.5" fill="${metal}"/>`);
