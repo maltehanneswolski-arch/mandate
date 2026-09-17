@@ -17745,9 +17745,10 @@ function draw(s){
     else add(`<g transform="translate(${phx} ${hy+handR-6})"><rect x="-8" y="0" width="16" height="22" rx="2" fill="#d8c9a8"/><path d="M-8 6 h16" stroke="#7a1f1f" stroke-width="2"/></g>`);
   }
   if(R.prop!=='none' && R.prop!=='handbag' && b.id==='firebrand'){
-    /* A megaphone has to read as one at 70 pixels tall: a horn that clearly widens, a dark
-       rim at the mouth so the cone has an end, a body, and a grip the fist closes around. */
-    if(!medieval) add(`<g transform="translate(${phx+pdir*handR*0.45} ${hy-2}) rotate(${pdir*34})"><rect x="-4" y="-4" width="8" height="21" rx="3.5" fill="#2f2f33"/><rect x="-7.5" y="-15" width="15" height="12" rx="3" fill="#3a3a40"/><path d="M-7.5 -15 l-11.5 -27 h38 l-11.5 27 z" fill="#c0392b"/><path d="M-3 -15 l-6.5 -25 h5.5 z" fill="#d9584a"/><path d="M-19 -42 h38 a3.2 3.2 0 0 0 0 -6.4 h-38 a3.2 3.2 0 0 0 0 6.4 z" fill="#7e2a20"/><circle cx="0" cy="5" r="4.2" fill="${SKIN}"/></g>`);
+    /* Held down at the side, mouth to the ground, the way anybody actually carries one between
+       speeches. A cone under a body is a bullhorn at any size; the horn pointing up past the
+       shoulder was a red wedge with nothing to read it against. */
+    if(!medieval) add(`<g transform="translate(${phx+pdir*handR*0.35} ${hy}) rotate(${pdir*14})"><rect x="-8" y="4" width="16" height="14" rx="3" fill="#3a3a40"/><path d="M-8 18 l-8 24 h32 l-8 -24 z" fill="#c0392b"/><rect x="-17" y="40" width="34" height="6" rx="3" fill="#8e2b20"/><rect x="-5.5" y="-5" width="11" height="10" rx="4" fill="#2f2f33"/><circle cx="0" cy="0" r="4.2" fill="${SKIN}"/></g>`);
     else add(`<g transform="translate(${phx+pdir*4} ${hy})"><rect x="-3" y="-120" width="6" height="128" fill="#6a5640"/><rect x="${pdir>0?-22:-22}" y="-146" width="44" height="30" rx="2" fill="#d8c9a8"/><path d="M-14 -136 h28 M-14 -128 h20" stroke="#7a1f1f" stroke-width="2"/></g>`);
   }
   if(R.prop!=='none' && R.prop!=='handbag' && b.id==='scholar'){
