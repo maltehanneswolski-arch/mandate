@@ -11197,7 +11197,7 @@ function renderRankUp(){
   noteOfficeHistory();
   const changes=Math.max(0,((p.officeHistory||[]).length)-1);
   const graph=changes>=2
-    ? `<div class="dsub" style="margin-top:2px">Your climb so far · ${years} year${years===1?"":"s"} in public life</div>${careerGraphSvg()}`
+    ? `<div style="height:6px"></div>${careerGraphSvg()}`   /* the graph speaks for itself; its heading is gone */
     : "";
   const cel=(m&&m.good)?confettiHtml(m.to&&/world|prime|president|chancellor|general secretary|king|queen/i.test(m.to)?190:120):"";
   const toast=G.traitToast?`<div class="flagnote" style="${traitToastStyle()};margin-top:8px">${G.traitToast}</div>`:"";
@@ -12026,6 +12026,12 @@ const GLOBAL_DIFF=6;
 /* +5% harder for every custom career (classic lives keep their authored difficulty), and the
    crown a shade harder again, the court climb was the softest of the five systems. checkOdds
    divides by 52, so 2.6 points is 5 percentage points on every roll. */
+/* ===== HARDER AT THE TOP: risky choices and promotions succeed less (2026-09-25) =====
+   Tuned on the systematic grid so a best-case player reaches the top office about ten points less
+   often. Classic lives are left alone. Re-measure before moving these. */
+const HARD={"PROMO_CAP_CUT":0.09,"CHECK_HARD":0.03,"ELECT_PROMO":0.55,"AUTH_PROMO_UP":3};
+function hardOn(){const p=G.player;return !!(p&&!p.scenario);}
+function isWorldChoice(ch){return [ch,ch&&ch.onSuccess,ch&&ch.onFailure].some(function(o){return o&&o.flags&&(o.flags.indexOf("world_leader")>=0||o.flags.indexOf("world_stage_mandate")>=0);});}
 function effDiff(){const p=G.player;if(!p||p.scenario)return GLOBAL_DIFF;return GLOBAL_DIFF+2.6+(sys().group==="monarchy"?1.6:0);}
 function checkOdds(ch,e){
   const p=G.player,st=checkStat(ch,e),val=statVal(st);
@@ -12044,6 +12050,7 @@ function checkOdds(ch,e){
   G.pendingTraitOddsList=(G._etBoosts||[]).filter(b=>b.id&&TRAITS[b.id]&&Math.abs(b.amt)>=0.03&&!seenT[b.id]&&(seenT[b.id]=1))
     .map(b=>b.amt>0?("<i>"+TRAITS[b.id].name+"</i> improved odds"):("<i>"+TRAITS[b.id].name+"</i> lowered odds."));
 if(hasDebuff("burnout"))ps-=0.08;
+  if(hardOn()&&!isWorldChoice(ch))ps-=HARD.CHECK_HARD;   /* a risky call is a little riskier */
   return clamp(ps,0.03,0.96);
 }
 /* ===== BACKFIRES ROUTED BY THE CHOICE, NOT THE EVENT =====
@@ -13301,7 +13308,7 @@ function resolveMilestone(forcedCollapse){
     R.objectiveMet=p.regimeFavor>=target;
     if(rng()<pPurge){toAvert("purge",R);return;}
     let promo=p.regimeFavor*0.55+p.stats.partyStanding*0.35+p.stats.nerve*0.10+rint(-12,10);
-    if(promo+potBoost+ascentBias()>=37+t*4&&p.regimeFavor>=38&&p.office<topNat()){R.promoteEligible=true;R.result=S.group==="monarchy"?staticPick([
+    if(promo+potBoost+ascentBias()>=37+t*4+(hardOn()?HARD.AUTH_PROMO_UP:0)&&p.regimeFavor>=38&&p.office<topNat()){R.promoteEligible=true;R.result=S.group==="monarchy"?staticPick([
       "The Crown has begun to treat your name as a solution, not a risk. A higher station is now plausible.",
       "Court whispers turn in your favor, and the next vacancy no longer feels closed to you.",
       "The palace notices your usefulness. That is not friendship, but it can become elevation.",
@@ -13378,7 +13385,7 @@ function resolveMilestone(forcedCollapse){
         else{R.result=`Re-elected. Term ${p.termsAsTop} of ${S.termLimit} begins, the constitution is already counting.`;R.band="win";}
       /* Winning is the job, not the promotion. A clean win used to make the next rung near-automatic
          in a democracy; now it also takes a strong hand inside the party and a bit of luck. */
-      } else if(p.capital+potBoost+ascentBias()>=44+t*5&&R.objectiveMet&&p.office<topNat()&&p.stats.partyStanding>=46&&rng()<0.62){R.promoteEligible=true;R.result=staticPick([
+      } else if(p.capital+potBoost+ascentBias()>=44+t*5&&R.objectiveMet&&p.office<topNat()&&p.stats.partyStanding>=46&&rng()<(hardOn()?HARD.ELECT_PROMO:0.62)){R.promoteEligible=true;R.result=staticPick([
         "You hold the seat with room to spare, and senior people start treating your ambition as practical.",
         "The count gives you more than survival. It gives the party a reason to test you higher.",
         "You win cleanly enough that the next office stops sounding premature.",
@@ -13682,7 +13689,7 @@ function makeTermLimitGate(){
    ladder narrows, so the bottom is generous and the summit is not. */
 /* 80% is the hard ceiling on any climb, whatever the stats, the traits or the momentum behind
    it. From there it still falls as the ladder narrows, so the summit is the hardest rung. */
-function promoOddsCap(){return clamp(0.80-0.06*natTier(),0.74,0.80);}
+function promoOddsCap(){return clamp(0.80-0.06*natTier(),0.74,0.80)-(hardOn()?HARD.PROMO_CAP_CUT:0);}
 /* Succession cards live in the shared EVENTS array, so capping one in place would raise its
    difficulty permanently for every later career in the same session. This caps a copy. */
 function capClimbCopy(ev){
