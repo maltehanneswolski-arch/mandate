@@ -13478,10 +13478,12 @@ function worldPotChance(){
   const mult=(p.startBase===undefined)?1:(WORLD_RUNG_MULT[p.startBase]===undefined?1:WORLD_RUNG_MULT[p.startBase]);
   return clamp(base*mult,0.01,0.62)*WORLD_RATE;
 }   /* the world stage is for 5-star careers, mostly */
-/* One dial for how often the world stage opens at all. Set on 2026-09-24 to halve world leaders overall.
-   Invitations repeat over a long reign, so the dial is not linear: measured on 450 careers, 1 gave 23
-   world leaders, 0.5 gave 17, 0.25 gave 10 and 0.15 gave 8. Re-measure before moving it. */
-const WORLD_RATE=0.25;
+/* How often the world stage opens. Back to 1 on 2026-09-25: the invitation comes as often as it did,
+   and the rarity lives in the bid itself (WORLD_BID_HARD), which asks for better stats. */
+const WORLD_RATE=1;
+/* how much harder every world-stage check is: winning the crown takes genuinely strong stats */
+const WORLD_BID_HARD=42;   /* measured on 2,400 careers: 42 keeps a typical player at 2% world leaders while a best-stats player reaches 3% */
+function worldBidHard(){const p=G.player;return (p&&!p.scenario)?WORLD_BID_HARD:0;}
 function worldStagePulseReady(){
   if(!G.player)return false;
   const p=G.player,s=p.stats,favorOK=(p.regimeFavor===undefined||p.regimeFavor>=52);
@@ -15860,7 +15862,7 @@ function makeWorldGate(){
   };
   const path=S.group==="authoritarian"?paths.authoritarian:paths.elected;
   path.text=dedupeRunText(path.text,`world gate ${p.year} ${p.worldGateSeq}`);
-  const diff=Math.round(50+step*2-(((G.player.potential||3)-3)*8)-worldAscentBias()*0.45);   /* the old 0.75 bias discount made the roll near-certain */
+  const diff=Math.round(50+step*2-(((G.player.potential||3)-3)*8)-worldAscentBias()*0.45)+worldBidHard();   /* the bid asks for better stats */   /* the old 0.75 bias discount made the roll near-certain */
   if(final){
     return {_special:true,cat:path.cat,title:"The summit of the world",
      text:path.text+`\n\nThis is the final ascent: the cameras outside call it a summit, but everyone inside knows they are choosing who writes the rules after the old order breaks.`,
@@ -18172,9 +18174,9 @@ function draw(s){
     }
     if(R.pin) pinDot();
     /* the chain goes on before the scarf: a scarf is worn over it, not under it */
-    if(R.necklace==='gold chain') add(`<path d="M${150-vHalf*0.9} ${shoulderY+4} q${vHalf*0.9} ${vHalf*1.6} ${vHalf*1.8} 0" fill="none" stroke="${metal}" stroke-width="3"/>`);
-    if(R.necklace==='thin chain') add(`<path d="M${150-vHalf*0.8} ${shoulderY+2} q${vHalf*0.8} ${vHalf*1.4} ${vHalf*1.6} 0" fill="none" stroke="${metal}" stroke-width="1.5"/><circle cx="150" cy="${shoulderY+vHalf*0.7+2}" r="2.5" fill="${metal}"/>`);
-    if(R.necklace==='pearls') add(`<g fill="#f4efe6" stroke="#bbb" stroke-width="0.6">${[-3,-2,-1,0,1,2,3].map(i=>`<circle cx="${150+i*vHalf*0.26}" cy="${shoulderY+8+ (9-i*i)*1.2}" r="3"/>`).join('')}</g>`);
+    if(R.necklace==='gold chain') add(`<path d="M${150-vHalf*0.9} ${shoulderY+4} q${vHalf*0.9} ${vHalf*1.6} ${vHalf*1.8} 0" fill="none" stroke="${metal}" stroke-width="3"/>`);
+    if(R.necklace==='thin chain') add(`<path d="M${150-vHalf*0.8} ${shoulderY+2} q${vHalf*0.8} ${vHalf*1.4} ${vHalf*1.6} 0" fill="none" stroke="${metal}" stroke-width="1.5"/><circle cx="150" cy="${shoulderY+vHalf*0.7+2}" r="2.5" fill="${metal}"/>`);
+    if(R.necklace==='pearls') add(`<g fill="#f4efe6" stroke="#bbb" stroke-width="0.6">${[-3,-2,-1,0,1,2,3].map(i=>`<circle cx="${150+i*vHalf*0.26}" cy="${shoulderY+8+ (9-i*i)*1.2}" r="3"/>`).join('')}</g>`);
     if(c.id==='republic' && b.id!=='hardliner' && !(b.id==='firebrand' && fireStage==='shirt')){
       const scCol = ['#6b3a3f','#8a6a2a','#3b5f4a','#4a4a55'][R.outfit%4], scCol2 = mix(scCol,'#ffffff',.3);
       const bw2 = vHalf*2+12, tx = 150 - vHalf*0.55, tw = Math.max(12, Math.round(vHalf*0.6)), tl = Math.round(torsoH*0.5);
